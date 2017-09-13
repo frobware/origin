@@ -255,31 +255,25 @@ func (c *NodeConfig) EnsureLocalQuota(nodeConfig configapi.NodeConfig) {
 	}
 }
 
-// RunServiceStores retrieves service info from the master, and closes the
-// ServicesReady channel when done.
-func (c *NodeConfig) RunServiceStores(enableProxy, enableDNS bool) {
-	if !enableProxy && !enableDNS {
-		close(c.ServicesReady)
-		return
-	}
-
+// RunServiceStores retrieves service info from the master. The
+// "services" store and the "endpoints" store are ready to be used on
+// return from this function.
+func (c *NodeConfig) RunServiceStores() {
 	serviceList := cache.NewListWatchFromClient(c.Client.CoreClient.RESTClient(), "services", kapi.NamespaceAll, fields.Everything())
 	serviceReflector := cache.NewReflector(serviceList, &kapi.Service{}, c.ServiceStore, c.ProxyConfig.ConfigSyncPeriod)
 	serviceReflector.Run()
 
-	if enableProxy {
-		endpointList := cache.NewListWatchFromClient(c.Client.CoreClient.RESTClient(), "endpoints", kapi.NamespaceAll, fields.Everything())
-		endpointReflector := cache.NewReflector(endpointList, &kapi.Endpoints{}, c.EndpointsStore, c.ProxyConfig.ConfigSyncPeriod)
-		endpointReflector.Run()
+	endpointList := cache.NewListWatchFromClient(c.Client.CoreClient.RESTClient(), "endpoints", kapi.NamespaceAll, fields.Everything())
+	endpointReflector := cache.NewReflector(endpointList, &kapi.Endpoints{}, c.EndpointsStore, c.ProxyConfig.ConfigSyncPeriod)
+	endpointReflector.Run()
 
-		for len(endpointReflector.LastSyncResourceVersion()) == 0 {
-			time.Sleep(100 * time.Millisecond)
-		}
+	for len(endpointReflector.LastSyncResourceVersion()) == 0 {
+		time.Sleep(100 * time.Millisecond)
 	}
+
 	for len(serviceReflector.LastSyncResourceVersion()) == 0 {
 		time.Sleep(100 * time.Millisecond)
 	}
-	close(c.ServicesReady)
 }
 
 // RunKubelet starts the Kubelet.
@@ -355,7 +349,6 @@ func (c *NodeConfig) RunPlugin() {
 // RunDNS starts the DNS server as soon as services are loaded.
 func (c *NodeConfig) RunDNS() {
 	go func() {
-		<-c.ServicesReady
 		glog.Infof("Starting DNS on %s", c.DNSServer.Config.DnsAddr)
 		err := c.DNSServer.ListenAndServe()
 		glog.Fatalf("DNS server failed to start: %v", err)

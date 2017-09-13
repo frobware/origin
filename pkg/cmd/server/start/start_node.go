@@ -366,13 +366,18 @@ func StartNode(nodeConfig configapi.NodeConfig, components *utilflags.ComponentF
 		config.RunPlugin()
 	}
 	if components.Enabled(ComponentProxy) {
+		// The ordering here is important; RunProxy() must
+		// happen first as it sets up both config.ServiceStore
+		// and config.EndpointsStore both of which are
+		// required to be non-nil when invoking
+		// RunServiceStores(). The service stores must also be
+		// setup and available prior to calling RunDNS().
 		config.RunProxy()
+		config.RunServiceStores()
 	}
 	if components.Enabled(ComponentDNS) && config.DNSServer != nil {
 		config.RunDNS()
 	}
-
-	config.RunServiceStores(components.Enabled(ComponentProxy), components.Enabled(ComponentDNS))
 
 	return nil
 }

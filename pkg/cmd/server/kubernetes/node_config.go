@@ -73,8 +73,6 @@ type NodeConfig struct {
 	ServiceStore cache.Store
 	// EndpointsStore is reused between proxy and DNS
 	EndpointsStore cache.Store
-	// ServicesReady is closed when the service and endpoint stores are ready to be used
-	ServicesReady chan struct{}
 
 	// DNSConfig controls the DNS configuration.
 	DNSServer *dns.Server
@@ -302,8 +300,6 @@ func BuildKubernetesNodeConfig(options configapi.NodeConfig, enableProxy, enable
 
 		KubeletServer: server,
 		KubeletDeps:   deps,
-
-		ServicesReady: make(chan struct{}),
 
 		ProxyConfig:    proxyconfig,
 		EnableUnidling: options.EnableUnidling,
