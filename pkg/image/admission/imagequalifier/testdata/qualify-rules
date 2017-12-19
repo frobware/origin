@@ -1,0 +1,10 @@
+busybox:latest           busybox-latest.dev.io
+busybox                  busybox.com
+
+my-namespace/*           localhost:4004
+your-namespace/*:*[a-z]* localhost:8008
+
+*/*                      internal.com
+
+*                        external.com
+
