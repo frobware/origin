@@ -23,6 +23,7 @@ import (
 	"github.com/openshift/origin/pkg/image/admission/imagepolicy/api"
 	"github.com/openshift/origin/pkg/image/admission/imagepolicy/api/validation"
 	"github.com/openshift/origin/pkg/image/admission/imagepolicy/rules"
+	imagequalifier "github.com/openshift/origin/pkg/image/admission/imagequalifier"
 	imageapi "github.com/openshift/origin/pkg/image/apis/image"
 	imageclient "github.com/openshift/origin/pkg/image/generated/internalclientset"
 	imageinternalclient "github.com/openshift/origin/pkg/image/generated/internalclientset/typed/image/internalversion"
@@ -46,8 +47,9 @@ func Register(plugins *admission.Plugins) {
 			if errs := validation.Validate(config); len(errs) > 0 {
 				return nil, errs.ToAggregate()
 			}
-			glog.V(5).Infof("%s admission controller loaded with config: %#v", api.PluginName, config)
-			return newImagePolicyPlugin(config)
+			x, y := newImagePolicyPlugin(config)
+			glog.V(2).Infof("%s ADMISSION CONTROLLER LOADED with config: %#v, rules=%#v", api.PluginName, config, x)
+			return x, y
 		})
 }
 
@@ -62,6 +64,8 @@ type imagePolicyPlugin struct {
 
 	projectCache *cache.ProjectCache
 	resolver     imageResolver
+
+	qualifyRules []imagequalifier.Rule
 }
 
 var _ = oadmission.WantsOpenshiftInternalImageClient(&imagePolicyPlugin{})
@@ -97,14 +101,23 @@ func newImagePolicyPlugin(parsed *api.ImagePolicyConfig) (*imagePolicyPlugin, er
 		return nil, err
 	}
 
-	return &imagePolicyPlugin{
+	plugin := &imagePolicyPlugin{
 		Handler: admission.NewHandler(admission.Create, admission.Update),
 		config:  parsed,
 
 		accepter: accepter,
 
 		integratedRegistryMatcher: m,
-	}, nil
+	}
+
+	if parsed.QualifyRulesFilename != "" {
+		plugin.qualifyRules, err = imagequalifier.ParseRules(parsed.QualifyRulesFilename)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return plugin, nil
 }
 
 func (a *imagePolicyPlugin) SetDefaultRegistryFunc(fn func() (string, bool)) {
