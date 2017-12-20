@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/admission"
 	kapi "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/util/parsers"
 
 	"github.com/openshift/origin/pkg/api/latest"
 	"github.com/openshift/origin/pkg/api/meta"
@@ -65,7 +66,7 @@ type imagePolicyPlugin struct {
 	projectCache *cache.ProjectCache
 	resolver     imageResolver
 
-	qualifyRules []imagequalifier.Rule
+	qualifyImageRules []imagequalifier.Rule
 }
 
 var _ = oadmission.WantsOpenshiftInternalImageClient(&imagePolicyPlugin{})
@@ -101,23 +102,14 @@ func newImagePolicyPlugin(parsed *api.ImagePolicyConfig) (*imagePolicyPlugin, er
 		return nil, err
 	}
 
-	plugin := &imagePolicyPlugin{
+	return &imagePolicyPlugin{
 		Handler: admission.NewHandler(admission.Create, admission.Update),
 		config:  parsed,
 
 		accepter: accepter,
 
 		integratedRegistryMatcher: m,
-	}
-
-	if parsed.QualifyRulesFilename != "" {
-		plugin.qualifyRules, err = imagequalifier.ParseRules(parsed.QualifyRulesFilename)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return plugin, nil
+	}, nil
 }
 
 func (a *imagePolicyPlugin) SetDefaultRegistryFunc(fn func() (string, bool)) {
@@ -188,6 +180,26 @@ func (a *imagePolicyPlugin) Admit(attr admission.Attributes) error {
 		// TODO: Create a general equivalence map for admission - operation X on subresource Y is equivalent to reduced operation
 	default:
 		return nil
+	}
+
+	pod, isPod := attr.GetObject().(*kapi.Pod)
+
+	if isPod {
+		// Qualify container image names by adding a domain
+		// component iff it is not already qualified and only
+		// if there is a pattern match for the image name.
+		//
+		// XXX parse every time during development.
+		rules, err := imagequalifier.ParseRules(a.config.QualifyRulesFilename)
+		if err != nil {
+			return err
+		}
+		if _, err := qualifyContainerImages(pod.Spec.InitContainers, rules); err != nil {
+			return err
+		}
+		if _, err := qualifyContainerImages(pod.Spec.Containers, rules); err != nil {
+			return err
+		}
 	}
 
 	// This will convert any non-legacy Origin resource to a legacy resource, so specifying
@@ -488,4 +500,32 @@ func (config resolutionConfig) RewriteImagePullSpec(attr *rules.ImagePolicyAttri
 // resolutionRuleCoversResource implements wildcard checking on Resource names
 func resolutionRuleCoversResource(rule metav1.GroupResource, gr schema.GroupResource) bool {
 	return rule.Group == gr.Group && (rule.Resource == gr.Resource || rule.Resource == "*")
+}
+
+// qualifyContainerImages modifies containers to include domain iff
+// the image name is unqualified (i.e., it has no domain component).
+// It fails fast if adding qualification results in an invalid image
+// reference.
+func qualifyContainerImages(containers []kapi.Container, rules []imagequalifier.Rule) (string, error) {
+	for i := range containers {
+		existingdomain, _, err := imagequalifier.SplitImageName(containers[i].Image)
+		if err != nil {
+			return containers[i].Image, err
+		}
+		if existingdomain != "" {
+			glog.V(2).Infof("not qualifying image %q as it is already qualified", containers[i].Image)
+			continue
+		}
+		newDomain, qualifiedImage := imagequalifier.Qualify(containers[i].Image, rules)
+		if newDomain == "" {
+			glog.V(2).Infof("not qualifying image %q as no rule matched", containers[i].Image)
+			continue
+		}
+		if _, _, _, err := parsers.ParseImageName(qualifiedImage); err != nil {
+			return qualifiedImage, err
+		}
+		glog.V(2).Infof("qualifying image %q as %q", containers[i].Image, qualifiedImage)
+		containers[i].Image = qualifiedImage
+	}
+	return "", nil
 }
