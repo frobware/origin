@@ -1,0 +1,7 @@
+admissionConfig:
+  pluginConfig:
+    openshift.io/ImagePolicy:
+      configuration:
+        kind: ImagePolicyConfig
+        apiVersion: v1
+        qualifyRulesFilename: /home/centos/rules
