@@ -20,4 +20,5 @@ var (
 	ValidateDomain = validateDomain
 	ParseInput     = parseInput
 	SortRules      = sortRules
+	OrderRules     = orderRules
 )

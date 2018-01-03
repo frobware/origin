@@ -19,4 +19,5 @@ package imagequalifier
 type Rule struct {
 	Pattern string
 	Domain  string
+	parts   *pattern
 }
