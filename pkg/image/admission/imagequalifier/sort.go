@@ -114,25 +114,33 @@ func ruleCompare(a, b Rule) bool {
 		return false
 	}
 
-	if a.parts.tag < b.parts.tag {
+	if a.parts.tag == "*" && b.parts.tag == "" {
+		return false
+	} else if a.parts.tag < b.parts.tag {
 		return true
 	} else if a.parts.tag > b.parts.tag {
 		return false
 	}
 
-	if a.parts.image < b.parts.image {
+	if a.parts.image == "*" && b.parts.image == "" {
+		return false
+	} else if a.parts.image < b.parts.image {
 		return true
 	} else if a.parts.image > b.parts.image {
 		return false
 	}
 
-	if a.parts.library < b.parts.library {
+	if a.parts.library == "*" && b.parts.library == "" {
+		return false
+	} else if a.parts.library < b.parts.library {
 		return true
 	} else if a.parts.library > b.parts.library {
 		return false
 	}
 
-	if a.parts.domain < b.parts.domain {
+	if a.parts.domain == "*" && b.parts.domain == "" {
+		return false
+	} else if a.parts.domain < b.parts.domain {
 		return true
 	} else if a.parts.domain > b.parts.domain {
 		return false
@@ -227,6 +235,12 @@ func sortRules(rules []Rule) []Rule {
 	})
 
 	return append(wild, explicit...)
+
+	// sort.Slice(rules, func(i int, j int) bool {
+	// 	return ruleCompare(rules[i], rules[j])
+	// })
+
+	// return rules
 }
 
 func orderRules(rules []Rule) []Rule {
