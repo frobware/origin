@@ -17,8 +17,6 @@ limitations under the License.
 package imagequalifier
 
 import (
-	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/docker/distribution/reference"
@@ -35,6 +33,16 @@ type pattern struct {
 func splitDomain(image string) (string, string) {
 	i := strings.IndexRune(image, '/')
 	if i == -1 || (!strings.ContainsAny(image[:i], ".:") && image[:i] != "localhost") {
+		// This case is special. Ordinarily things must look
+		// like a domain name, or localhost, and/or have a
+		// port number. For patterns we look to see how many
+		// other delimiters there are and, if there's more
+		// than one, the first must represent the desired
+		// domain.
+		n := strings.Count(image, "/")
+		if n > 1 {
+			return image[:i], image[i+1:]
+		}
 		return "", image
 	}
 	return image[:i], image[i+1:]
@@ -42,7 +50,7 @@ func splitDomain(image string) (string, string) {
 
 func parsePattern(s string) (*pattern, error) {
 	matches := ReferenceRegexp.FindStringSubmatch(s)
-	fmt.Printf("MATCHES: %#v\n", matches)
+
 	if matches == nil {
 		if s == "" {
 			return nil, reference.ErrNameEmpty
@@ -53,36 +61,18 @@ func parsePattern(s string) (*pattern, error) {
 		return nil, reference.ErrReferenceInvalidFormat
 	}
 
-	if len(matches[1]) > 2500 {
-		return nil, errors.New("ErrNameTooLong")
-	}
+	var p pattern
 
-	var ref pattern
-
-	// nameMatch := anchoredNameRegexp.FindStringSubmatch(matches[1])
-	// if nameMatch != nil && len(nameMatch) == 3 {
-	// 	ref.domain = nameMatch[1]
-	// 	ref.path = nameMatch[2]
-	// } else {
-	// 	image := matches[1]
-	// 	i := strings.IndexRune(image, '/')
-	// 	if i == -1 || (!strings.ContainsAny(image[:i], ".:") && image[:i] != "localhost") {
-	// 		ref.domain, ref.path = "", image
-	// 	} else {
-	// 		ref.domain, ref.path = image[:i], image[i+1:]
-	// 	}
-	// }
-
-	ref.domain, ref.path = splitDomain(matches[1])
-	ref.tag = matches[2]
+	p.domain, p.path = splitDomain(matches[1])
+	p.tag = matches[2]
 
 	if matches[3] != "" {
 		var err error
-		ref.digest, err = digest.Parse(matches[3])
+		p.digest, err = digest.Parse(matches[3])
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &ref, nil
+	return &p, nil
 }

@@ -21,31 +21,93 @@ import (
 	"testing"
 )
 
-func TestPattern(t *testing.T) {
+func TestPatternParseWithWildcards(t *testing.T) {
 	var testcases = []struct {
 		pattern  string
 		expected pattern
 	}{{
-		pattern: "ccc",
+		pattern: "*",
 		expected: pattern{
-			path: "ccc",
+			path: "*",
 		},
 	}, {
-		pattern: "library/ccc",
+		pattern: "*:*",
 		expected: pattern{
-			path: "library/ccc",
+			path: "*",
+			tag:  "*",
 		},
 	}, {
-		pattern: "library/ccc:latest",
+		pattern: "*/*:*",
 		expected: pattern{
-			path: "library/ccc",
+			path: "*/*",
+			tag:  "*",
+		},
+	}, {
+		pattern: "*/*/*:*",
+		expected: pattern{
+			domain: "*",
+			path:   "*/*",
+			tag:    "*",
+		},
+	}}
+
+	for i, tc := range testcases {
+		pattern, err := parsePattern(tc.pattern)
+
+		if err != nil {
+			t.Fatalf("test #%v: unexpected error for pattern %q: %s", i, tc.pattern, err)
+		}
+
+		if !reflect.DeepEqual(tc.expected, *pattern) {
+			t.Errorf("test #%v: expected %#v, got %#v", i, tc.expected, pattern)
+		}
+	}
+}
+
+func TestPatternParseNoWildcards(t *testing.T) {
+	var testcases = []struct {
+		pattern  string
+		expected pattern
+	}{{
+		pattern: "nginx",
+		expected: pattern{
+			path: "nginx",
+		},
+	}, {
+		pattern: "nginx@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		expected: pattern{
+			path:   "nginx",
+			digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}, {
+		pattern: "library/nginx",
+		expected: pattern{
+			path: "library/nginx",
+		},
+	}, {
+		pattern: "repo/nginx:latest",
+		expected: pattern{
+			path: "repo/nginx",
 			tag:  "latest",
 		},
 	}, {
-		pattern: "library/ccc:latest@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		pattern: "library/nginx:latest@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 		expected: pattern{
-			path:   "library/ccc",
+			path:   "library/nginx",
 			tag:    "latest",
+			digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}, {
+		pattern: "nginx@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		expected: pattern{
+			path:   "nginx",
+			digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}, {
+		pattern: "nginx.io/nginx@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		expected: pattern{
+			domain: "nginx.io",
+			path:   "nginx",
 			digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 		},
 	}, {
@@ -111,7 +173,7 @@ func TestPattern(t *testing.T) {
 		pattern, err := parsePattern(tc.pattern)
 
 		if err != nil {
-			t.Fatalf("unexpected error %v", err)
+			t.Fatalf("test #%v: unexpected error for pattern %q: %s", i, tc.pattern, err)
 		}
 
 		if !reflect.DeepEqual(tc.expected, *pattern) {
