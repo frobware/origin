@@ -113,8 +113,8 @@ func parseInput(filename string, src interface{}) ([]Rule, error) {
 		}
 
 		rules = append(rules, Rule{
-			pattern: words[0],
-			domain:  words[1],
+			Pattern: words[0],
+			Domain:  words[1],
 		})
 	}
 
