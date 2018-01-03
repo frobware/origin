@@ -24,10 +24,21 @@ import (
 )
 
 type pattern struct {
-	domain string
-	path   string
-	tag    string
-	digest digest.Digest
+	domain  string
+	path    string
+	library string
+	image   string
+	tag     string
+	digest  digest.Digest
+	*Rule
+}
+
+func splitPath(image string) (string, string) {
+	i := strings.IndexRune(image, '/')
+	if i == -1 {
+		return "", image
+	}
+	return image[:i], image[i+1:]
 }
 
 func splitDomain(image string) (string, string) {
@@ -64,6 +75,8 @@ func parsePattern(s string) (*pattern, error) {
 	var p pattern
 
 	p.domain, p.path = splitDomain(matches[1])
+	p.library, p.image = splitPath(p.path)
+
 	p.tag = matches[2]
 
 	if matches[3] != "" {
