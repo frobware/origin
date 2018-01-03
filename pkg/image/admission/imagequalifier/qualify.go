@@ -31,8 +31,8 @@ import (
 // component) and not be the empty string.
 func Qualify(unqualifiedImage string, rules []Rule) (domain string, qualifiedImage string) {
 	for i := range rules {
-		if ok, _ := path.Match(rules[i].pattern, unqualifiedImage); ok {
-			return rules[i].domain, fmt.Sprintf("%s/%s", rules[i].domain, unqualifiedImage)
+		if ok, _ := path.Match(rules[i].Pattern, unqualifiedImage); ok {
+			return rules[i].Domain, fmt.Sprintf("%s/%s", rules[i].Domain, unqualifiedImage)
 		}
 	}
 	return "", ""
