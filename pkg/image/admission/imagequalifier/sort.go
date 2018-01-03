@@ -214,34 +214,16 @@ func sortRules(rules []Rule) []Rule {
 	depth = depth
 	domain = domain
 
-	wtf := func(x, y *pattern) bool {
-		fmt.Println(x.Pattern, y.Pattern)
-		if x.digest < y.digest {
-			return true
-		}
-		if x.tag < y.tag {
-			return true
-		}
-		if x.image < y.image {
-			return true
-		}
-		if x.library < y.library {
-			return true
-		}
-		if x.domain < y.domain {
-			return true
-		}
-		return false
-	}
-
-	wtf = wtf
+	// wtf := func(x, y *pattern) bool {
+	// 	return ruleCompare(x.parts.Rule, y.parts.Rule)
+	// }
 
 	sort.Slice(wild, func(i int, j int) bool {
 		return ruleCompare(wild[i], wild[j])
 	})
 
 	sort.Slice(explicit, func(i int, j int) bool {
-		return ruleCompare(wild[i], wild[j])
+		return ruleCompare(explicit[i], explicit[j])
 	})
 
 	return append(wild, explicit...)
