@@ -20,8 +20,6 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
-	"sort"
-	"strings"
 	"testing"
 
 	"github.com/openshift/origin/pkg/image/admission/imagequalifier"
@@ -57,154 +55,7 @@ func makeTestInput(patterns []string, domain string) string {
 	return buffer.String()
 }
 
-func TestSortNoWildcards(t *testing.T) {
-	var testcases = []struct {
-		input    []string
-		expected []string
-	}{{
-		input:    []string{"ccc"},
-		expected: []string{"ccc"},
-	}, {
-		input:    []string{"ccc", "aaa", "bbb", "zzz"},
-		expected: []string{"aaa", "bbb", "ccc", "zzz"},
-	}, {
-		input:    []string{"ccc", "repo/ccc", "aaa", "zzz"},
-		expected: []string{"aaa", "ccc", "repo/ccc", "zzz"},
-	}}
-
-	for i, tc := range testcases {
-		rules := testRules(tc.input)
-		//		sorted := patterns(imagequalifier.SortRules(rules))
-		sorted := patterns(imagequalifier.OrderRules(rules))
-
-		if !reflect.DeepEqual(tc.expected, sorted) {
-			t.Errorf("test #%v: expected %#v, got %#v", i, tc.expected, sorted)
-		}
-	}
-}
-
-func TestSortWithWildcards(t *testing.T) {
-	var testcases = []struct {
-		input    []string
-		expected []string
-	}{{
-		input:    []string{"c", "*/c", "a"},
-		expected: []string{"*/c", "a", "c"},
-	}, {
-		input:    []string{"z", "a", "c", "c/c", "*/*/c"},
-		expected: []string{"*/*/c", "c/c", "a", "c", "z"},
-	}}
-
-	for i, tc := range testcases {
-		rules := testRules(tc.input)
-		//		sorted := patterns(imagequalifier.SortRules(rules))
-		sorted := patterns(imagequalifier.OrderRules(rules))
-
-		if !reflect.DeepEqual(tc.expected, sorted) {
-			t.Errorf("test #%v: expected %#v, got %#v", i, tc.expected, sorted)
-		}
-	}
-}
-
-func TestSortFoo(t *testing.T) {
-	var testcases = []struct {
-		input    string
-		expected []string
-	}{{
-		input: `
-    busybox                 a.io
-    busy                    a.io
-    repo/busy               a.io
-    repo/busybox            a.io
-    repo/busybox:*          b.io
-    repo/busybox:v1*        c.io
-    repo/busybox:v[7-9]*    d.io`,
-		expected: []string{
-			"repo/busybox",
-			"repo/busy",
-			"busybox",
-			"busy",
-			"repo/busybox:v[7-9]*",
-			"repo/busybox:v1*",
-			"repo/busybox:*",
-		},
-	}, {
-		input: `
-    *        a.io
-    */*      b.io
-    */*/*    c.io
-    */*/*:*  d.io`,
-		expected: []string{
-			"*/*/*:*",
-			"*/*/*",
-			"*/*",
-			"*",
-		},
-	}}
-
-	for i, tc := range testcases {
-		rules, err := imagequalifier.ParseInput("", tc.input)
-		if err != nil {
-			t.Fatalf("test #%v: unexpected error: %s", err)
-		}
-		sorted := patterns(imagequalifier.OrderRules(rules))
-
-		if !reflect.DeepEqual(tc.expected, sorted) {
-			t.Errorf("test #%v: expected %#v, got %#v", i, tc.expected, sorted)
-		}
-	}
-}
-
-func TestSortBar(t *testing.T) {
-	var testcases = []struct {
-		input    string
-		expected []string
-	}{{
-		input: `
-    busybox                 a.io
-    busy                    a.io
-    repo/busy               a.io
-    repo/busybox            a.io
-    repo/busybox:*          b.io
-    repo/busybox:v1*        c.io
-    repo/busybox:v[7-9]*    d.io
-    *        a.io
-    *me        a.io
-    *you      a.io
-    */*      b.io
-    */*/*    c.io
-    */*/*:*  d.io`,
-		expected: []string{
-			"repo/busybox",
-			"repo/busy",
-			"busybox",
-			"busy",
-			"repo/busybox:v[7-9]*",
-			"repo/busybox:v1*",
-			"repo/busybox:*",
-			"*/*/*:*",
-			"*/*/*",
-			"*/*",
-			"*me",
-			"*you",
-			"*",
-		},
-	}}
-
-	for i, tc := range testcases {
-		rules, err := imagequalifier.ParseInput("", tc.input)
-		if err != nil {
-			t.Fatalf("test #%v: unexpected error: %s", err)
-		}
-		sorted := patterns(imagequalifier.OrderRules(rules))
-
-		if !reflect.DeepEqual(tc.expected, sorted) {
-			t.Errorf("test #%v: expected %#v, got %#v", i, tc.expected, sorted)
-		}
-	}
-}
-
-func TestSortBar2(t *testing.T) {
+func TestSort(t *testing.T) {
 	var testcases = []struct {
 		input    []string
 		expected []string
@@ -232,6 +83,26 @@ func TestSortBar2(t *testing.T) {
 			"*you",
 		},
 		expected: []string{
+			"*",
+			"*/*",
+			"*/*/*",
+			"repo/*",
+			"*/*busy",
+			"*me",
+			"*you",
+			"busy",
+			"repo/busy",
+			"repo/busy*",
+			"busybox",
+			"qwerty/busybox",
+			"repo/busybox:*",
+			"repo/busybox",
+			"repo/busybox:1",
+			"*/*/*:latest",
+			"*/*:latest",
+			"repo/busybox:latest",
+			"foo*:latest",
+			"repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 			"busy",
 			"busybox",
 			"repo/*",
@@ -262,18 +133,4 @@ func TestSortBar2(t *testing.T) {
 			// t.Errorf("test #%v: expected %#v, got %#v", i, tc.expected, sorted)
 		}
 	}
-}
-
-func TestSortXXX(t *testing.T) {
-	rules := []string{"", "*", "busybox", "*/*"}
-
-	sort.Slice(rules, func(i, j int) bool {
-		x := strings.Count(rules[i], "*")
-		y := strings.Count(rules[j], "*")
-		if x != y {
-			return x < y
-		}
-		return rules[i] < rules[j]
-	})
-	fmt.Println(rules)
 }

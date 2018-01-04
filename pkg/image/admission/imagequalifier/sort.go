@@ -82,49 +82,6 @@ func (ms *ruleSorter) Less(i, j int) bool {
 	return ms.less[k](p.parts, q.parts)
 }
 
-func orderRules(rules []Rule) []Rule {
-	wild := make([]Rule, 0, len(rules))
-	explicit := make([]Rule, 0, len(rules))
-
-	for _, rule := range rules {
-		if strings.Contains(rule.Pattern, "*") {
-			wild = append(wild, rule)
-		} else {
-			explicit = append(explicit, rule)
-		}
-	}
-
-	sort.Slice(rules, func(i int, j int) bool {
-		x := strings.Count(rules[i].Pattern, "/")
-		y := strings.Count(rules[j].Pattern, "/")
-		if x != y {
-			return x < y
-		}
-		return rules[i].Pattern < rules[j].Pattern
-	})
-
-	// sort.Slice(wild, func(i int, j int) bool {
-	// 	x := strings.Count(wild[i].Pattern, "/")
-	// 	y := strings.Count(wild[j].Pattern, "/")
-
-	// 	if x != y {
-	// 		return x > y
-	// 	}
-
-	// 	p := strings.Count(wild[i].Pattern, "*")
-	// 	q := strings.Count(wild[j].Pattern, "*")
-
-	// 	if p == q {
-	// 		return wild[i].Pattern > wild[j].Pattern
-	// 	}
-
-	// 	return p > q
-	// })
-
-	// return append(explicit, wild...)
-	return rules
-}
-
 func ruleCompare(a, b Rule) bool {
 	if a.parts.digest < b.parts.digest {
 		return true
@@ -173,59 +130,83 @@ func unglobPattern(p *pattern) string {
 	return x
 }
 
-func unglob(s string) string {
-	if s == "*" {
-		return fmt.Sprintf("%c", 0x7F) // max ascii
+func globifyPattern(p *pattern) {
+	if p.digest == "" {
+		p.digest = "*"
 	}
+	if p.tag == "" {
+		p.tag = "*"
+	}
+	if p.image == "" {
+		p.image = "*"
+	}
+	if p.library == "" {
+		p.library = "*"
+	}
+	if p.domain == "" {
+		p.domain = "*"
+	}
+}
+
+func unglob(s string) string {
+	// if s == "*" {
+	// 	return fmt.Sprintf("%c", 0x7F) // max ascii
+	// }
 	return s
 }
 
+func globcmp(a, b string) bool {
+	if a == "*" && b == "" {
+		return false
+	}
+	if a == "" && b == "*" {
+		return false
+	}
+	return a < b
+}
+
 func ruleCompareWildcard(a, b Rule) bool {
-	x := fmt.Sprintf("/%s/%s/%s:%s@%s",
-		unglob(a.parts.domain),
-		unglob(a.parts.library),
-		unglob(a.parts.image),
-		unglob(a.parts.tag),
-		unglob(string(a.parts.digest)))
+	// x := fmt.Sprintf("/%s/%s/%s:%s/%s",
+	// 	unglob(a.parts.domain),
+	// 	unglob(a.parts.library),
+	// 	unglob(a.parts.image),
+	// 	unglob(a.parts.tag),
+	// 	unglob(string(a.parts.digest)))
 
-	y := fmt.Sprintf("/%s/%s/%s:%s@%s",
-		unglob(b.parts.domain),
-		unglob(b.parts.library),
-		unglob(b.parts.image),
-		unglob(b.parts.tag),
-		unglob(string(b.parts.digest)))
+	// y := fmt.Sprintf("/%s/%s/%s:%s/%s",
+	// 	unglob(b.parts.domain),
+	// 	unglob(b.parts.library),
+	// 	unglob(b.parts.image),
+	// 	unglob(b.parts.tag),
+	// 	unglob(string(b.parts.digest)))
 
-	if x < y {
-		fmt.Println("X < y --- ", x, y)
-	}
-
-	if a.parts.digest != "" && unglob(string(a.parts.digest)) < unglob(string(b.parts.digest)) {
+	if globcmp(string(a.parts.digest), string(b.parts.digest)) {
 		return true
-	} else if b.parts.digest != "" && unglob(string(b.parts.digest)) < unglob(string(a.parts.digest)) {
+	} else if globcmp(string(b.parts.digest), string(a.parts.digest)) {
 		return false
 	}
 
-	if a.parts.tag != "" && unglob(a.parts.tag) < unglob(b.parts.tag) {
+	if globcmp(a.parts.tag, b.parts.tag) {
 		return true
-	} else if b.parts.tag != "" && unglob(b.parts.tag) < unglob(a.parts.tag) {
+	} else if globcmp(b.parts.tag, a.parts.tag) {
 		return false
 	}
 
-	if a.parts.image != "" && unglob(a.parts.image) < unglob(b.parts.image) {
+	if globcmp(a.parts.image, b.parts.image) {
 		return true
-	} else if b.parts.image != "" && unglob(b.parts.image) < unglob(a.parts.image) {
+	} else if globcmp(b.parts.image, a.parts.image) {
 		return false
 	}
 
-	if a.parts.library != "" && unglob(a.parts.library) < unglob(b.parts.library) {
+	if globcmp(a.parts.library, b.parts.library) {
 		return true
-	} else if b.parts.library != "" && unglob(b.parts.library) < unglob(a.parts.library) {
+	} else if globcmp(b.parts.library, a.parts.library) {
 		return false
 	}
 
-	if a.parts.domain != "" && unglob(a.parts.domain) < unglob(b.parts.domain) {
+	if globcmp(a.parts.domain, b.parts.domain) {
 		return true
-	} else if b.parts.domain != "" && unglob(b.parts.domain) < unglob(a.parts.domain) {
+	} else if globcmp(b.parts.domain, a.parts.domain) {
 		return false
 	}
 
@@ -293,47 +274,28 @@ func sortRules(rules []Rule) []Rule {
 		return nx < ny
 	}
 
-	wildcardy := func(x, y *pattern) bool {
-		return ruleCompareWildcard(*x.Rule, *y.Rule)
-	}
-
-	unglobify := func(x, y *pattern) bool {
-		if unglobPattern(x) < unglobPattern(y) {
-			fmt.Println("X < y:", x.Pattern, y.Pattern)
-		}
-		return unglobPattern(x) > unglobPattern(y)
-	}
-
 	digest := func(x, y *pattern) bool {
-		return unglob(string(x.digest)) < unglob(string(y.digest))
+		return globcmp(string(x.digest), string(y.digest))
 	}
 
 	tag := func(x, y *pattern) bool {
-		return unglob(x.tag) < unglob(y.tag)
+		return globcmp(x.tag, y.tag)
 	}
-
-	tagReverse := func(x, y *pattern) bool {
-		return unglob(x.tag) > unglob(y.tag)
-	}
-
-	// path := func(x, y *pattern) bool {
-	// 	return x.path < y.path
-	// }
 
 	image := func(x, y *pattern) bool {
-		return unglob(x.image) < unglob(y.image)
+		return globcmp(x.image, y.image)
 	}
 
 	library := func(x, y *pattern) bool {
-		return unglob(x.library) < unglob(y.library)
+		return globcmp(x.library, y.library)
 	}
 
 	domain := func(x, y *pattern) bool {
-		return unglob(x.domain) < unglob(y.domain)
+		return globcmp(x.domain, y.domain)
 	}
 
 	pattern := func(x, y *pattern) bool {
-		return unglob(x.Rule.Pattern) < unglob(y.Rule.Pattern)
+		return globcmp(x.Rule.Pattern, y.Rule.Pattern)
 	}
 
 	digest = digest
@@ -342,10 +304,7 @@ func sortRules(rules []Rule) []Rule {
 	library = library
 	domain = domain
 	pattern = pattern
-	tagReverse = tagReverse
 	ncomopnents = ncomopnents
-	wildcardy = wildcardy
-	unglobify = unglobify
 
 	// OrderedBy(wtf).Sort(rules)
 	// sort.Slice(rules, func(i, j int) bool {
@@ -381,13 +340,14 @@ func sortRules(rules []Rule) []Rule {
 		return ruleCompareWildcard(rules[i], rules[j])
 	})
 
+	OrderedBy(digest, tag, image, library, domain).Sort(rules)
+
 	for i := range rules {
 		fmt.Printf("%-03v - %s\n", i, rules[i].Pattern)
 	}
 	return rules
 
 	// OrderedBy(pattern, digest).Sort(explicit)
-	// OrderedBy(digest, tag, image, library, domain).Sort(wild)
 
 	// for i := range explicit {
 	// 	fmt.Println("wild   ", explicit[i])
