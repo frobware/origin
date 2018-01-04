@@ -211,6 +211,7 @@ func TestSortBar2(t *testing.T) {
 	}{{
 		input: []string{
 			"*",
+			"*me",
 			"*/*/*:latest",
 			"*/*/*",
 			"*/*:latest",
@@ -228,6 +229,7 @@ func TestSortBar2(t *testing.T) {
 			"busybox",
 			"*/*",
 			"busy",
+			"*you",
 		},
 		expected: []string{
 			"busy",
