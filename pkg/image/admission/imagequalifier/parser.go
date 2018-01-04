@@ -112,9 +112,19 @@ func parseInput(filename string, src interface{}) ([]Rule, error) {
 			}
 		}
 
+		pattern, err := parsePattern(words[0])
+		if err != nil {
+			return nil, &RuleError{
+				Line:     line,
+				LineNum:  i + 1,
+				Filename: filename,
+				Message:  err.Error(),
+			}
+		}
+
 		rules = append(rules, Rule{
-			Pattern: words[0],
 			Domain:  words[1],
+			pattern: pattern,
 		})
 	}
 

@@ -98,23 +98,15 @@ func TestSort(t *testing.T) {
 			"repo/busybox:*",
 			"repo/busybox",
 			"repo/busybox:1",
-			"*/*/*:latest",
 			"*/*:latest",
+			"*/*/*:latest",
 			"repo/busybox:latest",
 			"foo*:latest",
-			"repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-			"busy",
-			"busybox",
-			"repo/*",
-			"repo/busy",
-			"repo/busy*",
-			"repo/busybox",
-			"repo/busybox:1",
 			"repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 		},
 	}}
 
-	for _, tc := range testcases {
+	for i, tc := range testcases {
 		rules, err := imagequalifier.ParseInput("", makeTestInput(tc.input, "example.com"))
 		if err != nil {
 			t.Fatalf("test #%v: unexpected error: %s", err)
@@ -130,7 +122,7 @@ func TestSort(t *testing.T) {
 			// for i := range sorted {
 			// 	t.Errorf("%q", sorted[i])
 			// }
-			// t.Errorf("test #%v: expected %#v, got %#v", i, tc.expected, sorted)
+			t.Errorf("test #%v: expected %#v, got %#v", i, tc.expected, sorted)
 		}
 	}
 }

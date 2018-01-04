@@ -30,7 +30,11 @@ type pattern struct {
 	image   string
 	tag     string
 	digest  digest.Digest
-	*Rule
+	Pattern string // full path domain/library/image/tag/digest
+}
+
+func (p *pattern) String() string {
+	return p.Pattern
 }
 
 func splitPath(image string) (string, string) {
@@ -45,11 +49,11 @@ func splitDomain(image string) (string, string) {
 	i := strings.IndexRune(image, '/')
 	if i == -1 || (!strings.ContainsAny(image[:i], ".:") && image[:i] != "localhost") {
 		// This case is special. Ordinarily things must look
-		// like a domain name, or localhost, and/or have a
+		// like a domain name, or localhost, and an optional
 		// port number. For patterns we look to see how many
 		// other delimiters there are and, if there's more
-		// than one, the first must represent the desired
-		// domain.
+		// than one, the first path segement must represent
+		// the domain.
 		n := strings.Count(image, "/")
 		if n > 1 {
 			return image[:i], image[i+1:]
@@ -72,11 +76,10 @@ func parsePattern(s string) (*pattern, error) {
 		return nil, reference.ErrReferenceInvalidFormat
 	}
 
-	var p pattern
+	p := &pattern{Pattern: s}
 
 	p.domain, p.path = splitDomain(matches[1])
 	p.library, p.image = splitPath(p.path)
-
 	p.tag = matches[2]
 
 	if matches[3] != "" {
@@ -87,5 +90,5 @@ func parsePattern(s string) (*pattern, error) {
 		}
 	}
 
-	return &p, nil
+	return p, nil
 }

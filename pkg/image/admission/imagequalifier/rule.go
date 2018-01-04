@@ -17,7 +17,6 @@ limitations under the License.
 package imagequalifier
 
 type Rule struct {
-	Pattern string
-	Domain  string
-	parts   *pattern
+	Domain string
+	*pattern
 }

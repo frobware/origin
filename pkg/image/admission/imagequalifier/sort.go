@@ -23,33 +23,33 @@ import (
 
 type lessFunc func(x, y *pattern) bool
 
-type ruleSorter struct {
+type patternSorter struct {
 	rules []Rule
 	less  []lessFunc
 }
 
 // Sort sorts the argument slice according to the less functions
-// passed to OrderedBy.
-func (ms *ruleSorter) Sort(rules []Rule) {
+// passed to orderby.
+func (ms *patternSorter) Sort(rules []Rule) {
 	ms.rules = rules
 	sort.Sort(ms)
 }
 
-// OrderedBy returns a Sorter that sorts using the less functions, in order.
+// Orderby returns a Sorter that sorts using the less functions, in order.
 // Call its Sort method to sort the data.
-func OrderedBy(less ...lessFunc) *ruleSorter {
-	return &ruleSorter{
+func orderby(less ...lessFunc) *patternSorter {
+	return &patternSorter{
 		less: less,
 	}
 }
 
 // Len is part of sort.Interface.
-func (ms *ruleSorter) Len() int {
+func (ms *patternSorter) Len() int {
 	return len(ms.rules)
 }
 
 // Swap is part of sort.Interface.
-func (ms *ruleSorter) Swap(i, j int) {
+func (ms *patternSorter) Swap(i, j int) {
 	ms.rules[i], ms.rules[j] = ms.rules[j], ms.rules[i]
 }
 
@@ -58,56 +58,25 @@ func (ms *ruleSorter) Swap(i, j int) {
 // or !Less. Note that it can call the less functions twice per call.
 // We could change the functions to return -1, 0, 1 and reduce the
 // number of calls for greater efficiency: an exercise for the reader.
-func (ms *ruleSorter) Less(i, j int) bool {
+func (ms *patternSorter) Less(i, j int) bool {
 	p, q := ms.rules[i], ms.rules[j]
 	// Try all but the last comparison.
 	var k int
 	for k = 0; k < len(ms.less)-1; k++ {
 		less := ms.less[k]
 		switch {
-		case less(p.parts, q.parts):
+		case less(p.pattern, q.pattern):
 			// p < q, so we have a decision.
 			return true
-		case less(q.parts, p.parts):
+		case less(q.pattern, p.pattern):
 			// p > q, so we have a decision.
 			return false
 		}
 		// p == q; try the next comparison.
 	}
 
-	// All comparisons to here are "equal", so just return
-	// whatever the final comparison reports.
-
-	return ms.less[k](p.parts, q.parts)
+	return ms.less[k](p.pattern, q.pattern)
 }
-
-// func unglobPattern(p *pattern) string {
-// 	x := fmt.Sprintf("/%s/%s/%s:%s/%s",
-// 		unglob(p.parts.domain),
-// 		unglob(p.parts.library),
-// 		unglob(p.parts.image),
-// 		unglob(p.parts.tag),
-// 		unglob(string(p.parts.digest)))
-// 	return x
-// }
-
-// func globifyPattern(p *pattern) {
-// 	if p.digest == "" {
-// 		p.digest = "*"
-// 	}
-// 	if p.tag == "" {
-// 		p.tag = "*"
-// 	}
-// 	if p.image == "" {
-// 		p.image = "*"
-// 	}
-// 	if p.library == "" {
-// 		p.library = "*"
-// 	}
-// 	if p.domain == "" {
-// 		p.domain = "*"
-// 	}
-// }
 
 func globcmp(a, b string) bool {
 	if a == "*" && b == "" {
@@ -120,33 +89,33 @@ func globcmp(a, b string) bool {
 }
 
 func ruleCompare(a, b Rule) bool {
-	if globcmp(string(a.parts.digest), string(b.parts.digest)) {
+	if string(a.pattern.digest) < string(b.pattern.digest) {
 		return true
-	} else if globcmp(string(b.parts.digest), string(a.parts.digest)) {
+	} else if string(b.pattern.digest) < string(a.pattern.digest) {
 		return false
 	}
 
-	if globcmp(a.parts.tag, b.parts.tag) {
+	if globcmp(a.pattern.tag, b.pattern.tag) {
 		return true
-	} else if globcmp(b.parts.tag, a.parts.tag) {
+	} else if globcmp(b.pattern.tag, a.pattern.tag) {
 		return false
 	}
 
-	if globcmp(a.parts.image, b.parts.image) {
+	if globcmp(a.pattern.image, b.pattern.image) {
 		return true
-	} else if globcmp(b.parts.image, a.parts.image) {
+	} else if globcmp(b.pattern.image, a.pattern.image) {
 		return false
 	}
 
-	if globcmp(a.parts.library, b.parts.library) {
+	if globcmp(a.pattern.library, b.pattern.library) {
 		return true
-	} else if globcmp(b.parts.library, a.parts.library) {
+	} else if globcmp(b.pattern.library, a.pattern.library) {
 		return false
 	}
 
-	if globcmp(a.parts.domain, b.parts.domain) {
+	if globcmp(a.pattern.domain, b.pattern.domain) {
 		return true
-	} else if globcmp(b.parts.domain, a.parts.domain) {
+	} else if globcmp(b.pattern.domain, a.pattern.domain) {
 		return false
 	}
 
@@ -154,39 +123,40 @@ func ruleCompare(a, b Rule) bool {
 }
 
 func sortRules(rules []Rule) []Rule {
-	for i := range rules {
-		p, err := parsePattern(rules[i].Pattern)
-		if err != nil {
-			panic(p)
+	if true {
+		digest := func(x, y *pattern) bool {
+			return string(x.digest) < string(y.digest)
 		}
-		rules[i].parts = p
-		p.Rule = &rules[i]
+
+		tag := func(x, y *pattern) bool {
+			return globcmp(x.tag, y.tag)
+		}
+
+		image := func(x, y *pattern) bool {
+			return globcmp(x.image, y.image)
+		}
+
+		library := func(x, y *pattern) bool {
+			return globcmp(x.library, y.library)
+		}
+
+		domain := func(x, y *pattern) bool {
+			return globcmp(x.domain, y.domain)
+		}
+
+		path := func(x, y *pattern) bool {
+			return globcmp(x.path, y.path)
+		}
+
+		orderby(digest, tag, image, library, path, domain).Sort(rules)
 	}
 
-	digest := func(x, y *pattern) bool {
-		return globcmp(string(x.digest), string(y.digest))
-	}
-
-	tag := func(x, y *pattern) bool {
-		return globcmp(x.tag, y.tag)
-	}
-
-	image := func(x, y *pattern) bool {
-		return globcmp(x.image, y.image)
-	}
-
-	library := func(x, y *pattern) bool {
-		return globcmp(x.library, y.library)
-	}
-
-	domain := func(x, y *pattern) bool {
-		return globcmp(x.domain, y.domain)
-	}
-
-	OrderedBy(digest, tag, image, library, domain).Sort(rules)
+	sort.Slice(rules, func(i, j int) bool {
+		return ruleCompare(rules[i], rules[j])
+	})
 
 	for i := range rules {
-		fmt.Printf("%-03v - %s\n", i, rules[i].Pattern)
+		fmt.Printf("%q,\n", rules[i].Pattern)
 	}
 	return rules
 }
