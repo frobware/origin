@@ -33,7 +33,7 @@ type ruleSorter struct {
 // passed to OrderedBy.
 func (ms *ruleSorter) Sort(rules []Rule) {
 	ms.rules = rules
-	sort.Stable(ms)
+	sort.Sort(ms)
 }
 
 // OrderedBy returns a Sorter that sorts using the less functions, in order.
@@ -162,6 +162,99 @@ func ruleCompare(a, b Rule) bool {
 	return false
 }
 
+func ruleCompareWildcard(a, b Rule) bool {
+	p := a.parts
+	q := b.parts
+
+	fmt.Println("P", p)
+	fmt.Println("q", q)
+
+	if p.parts.digest == "" {
+		p.parts.digest = ""
+	}
+	if p.parts.tag == "" {
+		p.parts.tag = ""
+	}
+	if p.parts.image == "" {
+		p.parts.image = ""
+	}
+	if p.parts.library == "" {
+		p.parts.library = ""
+	}
+	if p.parts.domain == "" {
+		p.parts.domain = ""
+	}
+
+	if q.parts.digest == "" {
+		q.parts.digest = ""
+	}
+	if q.parts.tag == "" {
+		q.parts.tag = ""
+	}
+	if q.parts.image == "" {
+		q.parts.image = ""
+	}
+	if q.parts.library == "" {
+		q.parts.library = ""
+	}
+	if q.parts.domain == "" {
+		q.parts.domain = ""
+	}
+
+	x := fmt.Sprintf("%s/%s/%s:%s@%s",
+		p.parts.domain,
+		p.parts.library,
+		p.parts.image,
+		p.parts.tag,
+		p.parts.digest)
+
+	y := fmt.Sprintf("%s/%s/%s:%s@%s",
+		q.parts.domain,
+		q.parts.library,
+		q.parts.image,
+		q.parts.tag,
+		q.parts.digest)
+
+	if x < y {
+		fmt.Println("X < y --- ", x, y)
+	}
+
+	if p.parts.digest < b.parts.digest {
+		return true
+	} else if b.parts.digest < p.parts.digest {
+		return false
+	}
+
+	if p.parts.tag < q.parts.tag {
+		return true
+	} else if q.parts.tag < p.parts.tag {
+		return false
+	}
+
+	if p.parts.image < q.parts.image {
+		return true
+	} else if q.parts.image < p.parts.image {
+		return false
+	}
+
+	if p.parts.library < q.parts.library {
+		return true
+	} else if q.parts.library < p.parts.library {
+		return false
+	}
+
+	if p.parts.domain < q.parts.domain {
+		return true
+	} else if q.parts.domain < p.parts.domain {
+		return false
+	}
+
+	fmt.Printf("AAA: %#v\n", p.parts)
+	fmt.Printf("bbb: %#v\n\n", b.parts)
+
+	return false
+}
+
 func sortRules(rules []Rule) []Rule {
 	for i := range rules {
 		p, err := parsePattern(rules[i].Pattern)
@@ -192,6 +285,46 @@ func sortRules(rules []Rule) []Rule {
 			ny += 1
 		}
 		return nx+strings.Count(x.path, "/") < ny+strings.Count(y.path, "/")
+	}
+
+	ncomopnents := func(x, y *pattern) bool {
+		nx := 0
+
+		if x.domain != "" {
+			nx += 1
+		}
+		if x.library != "" {
+			nx += 1
+		}
+		if x.image != "" {
+			nx += 1
+		}
+		if x.tag != "" {
+			nx += 1
+		}
+		if x.digest != "" {
+			nx += 1
+		}
+
+		ny := 0
+
+		if y.domain != "" {
+			ny += 1
+		}
+		if y.library != "" {
+			ny += 1
+		}
+		if y.image != "" {
+			ny += 1
+		}
+		if y.tag != "" {
+			ny += 1
+		}
+		if y.digest != "" {
+			ny += 1
+		}
+
+		return nx < ny
 	}
 
 	digest := func(x, y *pattern) bool {
@@ -234,24 +367,24 @@ func sortRules(rules []Rule) []Rule {
 	domain = domain
 	pattern = pattern
 	tagReverse = tagReverse
+	ncomopnents = ncomopnents
 	// OrderedBy(wtf).Sort(rules)
 	// sort.Slice(rules, func(i, j int) bool {
 	// 	return ruleCompare(rules[i], rules[j])
 	// })
 
 	OrderedBy(digest, tag, image, library, domain).Sort(explicit)
-	OrderedBy(pattern).Sort(explicit)
+	//	OrderedBy(pattern).Sort(explicit)
 
-	// sort.SliceStable(explicit, func(i, j int) bool {
-	// 	return ruleCompare(explicit[i], explicit[j])
-	// })
-
-	sort.SliceStable(wild, func(i, j int) bool {
-		return ruleCompare(wild[i], wild[j])
+	sort.SliceStable(explicit, func(i, j int) bool {
+		return ruleCompare(explicit[i], explicit[j])
 	})
 
-	// OrderedBy(pattern).Sort(explicit)
-	OrderedBy(pattern).Sort(wild)
+	sort.SliceStable(wild, func(i, j int) bool {
+		return ruleCompareWildcard(wild[i], wild[j])
+	})
+
+	//OrderedBy(depth, tag, digest).Sort(explicit)
 
 	for i := range explicit {
 		fmt.Printf("EXPLICIT %-03v - %s\n", i, explicit[i].Pattern)
