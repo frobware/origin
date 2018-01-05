@@ -14,14 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package imagequalifier_test
+package qualifier_test
 
 import (
 	"regexp"
 	"runtime"
 	"testing"
 
-	"github.com/openshift/origin/pkg/image/admission/imagequalifier"
+	"github.com/openshift/origin/pkg/image/admission/qualifier"
 )
 
 type testcase struct {
@@ -52,7 +52,7 @@ func testName() string {
 }
 
 func testQualify(t *testing.T, input string, tests []testcase) {
-	rules, err := imagequalifier.ParseInput("", input)
+	rules, err := qualifier.ParseInput("", input)
 
 	if err != nil {
 		t.Fatalf("unexpected error; got %s", err)
@@ -60,7 +60,7 @@ func testQualify(t *testing.T, input string, tests []testcase) {
 
 	for i, tc := range tests {
 		//t.Logf("%s: test #%v: %q", testName(), i, tc.image)
-		domain, qualifiedImage := imagequalifier.Qualify(tc.image, rules)
+		domain, qualifiedImage := qualifier.Qualify(tc.image, rules)
 
 		if domain != tc.domain {
 			t.Errorf("%s: test #%v: expected domain %q, got %q", testName(), i, tc.domain, domain)
@@ -74,7 +74,7 @@ func testQualify(t *testing.T, input string, tests []testcase) {
 		// image is valid and the constituent parts match the
 		// test case inputs.
 
-		domain, remainder, err := imagequalifier.SplitImageName(qualifiedImage)
+		domain, remainder, err := qualifier.SplitImageName(qualifiedImage)
 		if err != nil {
 			t.Fatalf("unexpected error; got %s", err)
 		}
@@ -88,7 +88,7 @@ func testQualify(t *testing.T, input string, tests []testcase) {
 }
 
 func TestQualifyInvalidInput(t *testing.T) {
-	_, err := imagequalifier.ParseInput("", map[string]bool{})
+	_, err := qualifier.ParseInput("", map[string]bool{})
 	if err == nil {
 		t.Fatalf("expected error")
 	}

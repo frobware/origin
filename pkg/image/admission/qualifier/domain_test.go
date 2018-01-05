@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package imagequalifier_test
+package qualifier_test
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/openshift/origin/pkg/image/admission/imagequalifier"
+	"github.com/openshift/origin/pkg/image/admission/qualifier"
 )
 
 func TestValidateDomain(t *testing.T) {
@@ -31,7 +31,7 @@ func TestValidateDomain(t *testing.T) {
 		"a.b.c.d.e.f",
 		"a.b.c.d.e.f:5000",
 	} {
-		if err := imagequalifier.ValidateDomain(domain); err != nil {
+		if err := qualifier.ValidateDomain(domain); err != nil {
 			t.Errorf("test #%d: unexpected error for %q, got %v", i, domain, err)
 		}
 	}
@@ -54,7 +54,7 @@ func TestValidateNameErrors(t *testing.T) {
 		description: "name too long",
 		input:       strings.Repeat("x", 255) + ".io",
 	}} {
-		if err := imagequalifier.ValidateDomain(test.input); err == nil {
+		if err := qualifier.ValidateDomain(test.input); err == nil {
 			t.Errorf("test #%v: expected an error for %q", i, test.description)
 		}
 	}
