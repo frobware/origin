@@ -21,7 +21,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/openshift/origin/pkg/image/admission/qualifier"
+	"github.com/openshift/origin/pkg/image/qualifier"
 )
 
 type testcase struct {

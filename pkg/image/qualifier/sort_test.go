@@ -22,7 +22,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/openshift/origin/pkg/image/admission/qualifier"
+	"github.com/openshift/origin/pkg/image/qualifier"
 )
 
 func patterns(rules []qualifier.Rule) []string {

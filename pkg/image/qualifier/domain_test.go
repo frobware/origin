@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openshift/origin/pkg/image/admission/qualifier"
+	"github.com/openshift/origin/pkg/image/qualifier"
 )
 
 func TestValidateDomain(t *testing.T) {

@@ -19,7 +19,7 @@ package qualifier_test
 import (
 	"testing"
 
-	"github.com/openshift/origin/pkg/image/admission/qualifier"
+	"github.com/openshift/origin/pkg/image/qualifier"
 )
 
 func TestParseNilInput(t *testing.T) {
