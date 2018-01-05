@@ -1,43 +1,40 @@
-/*
-Copyright 2017 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-// Package install installs the experimental API group, making it available as
-// an option to all of the API encoding/decoding machinery.
 package install
 
 import (
-	"k8s.io/apimachinery/pkg/apimachinery/announced"
-	"k8s.io/apimachinery/pkg/apimachinery/registered"
-	"k8s.io/apimachinery/pkg/runtime"
-	alwaysqualifyimagesapi "github.com/openshift/origin/pkg/image/admission/alwaysqualifyimages/apis/alwaysqualifyimages"
-	alwaysqualifyimagesv1alpha1 "github.com/openshift/origin/pkg/image/admission/alwaysqualifyimages/apis/alwaysqualifyimages/v1alpha1"
+	"github.com/golang/glog"
+	"k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/tools/clientcmd/api"
+
+	configapi "github.com/openshift/origin/pkg/cmd/server/api"
 )
 
-// Install registers the API group and adds types to a scheme
-func Install(groupFactoryRegistry announced.APIGroupFactoryRegistry, registry *registered.APIRegistrationManager, scheme *runtime.Scheme) {
-	if err := announced.NewGroupMetaFactory(
-		&announced.GroupMetaFactoryArgs{
-			GroupName:                  alwaysqualifyimagesapi.GroupName,
-			VersionPreferenceOrder:     []string{alwaysqualifyimagesv1alpha1.SchemeGroupVersion.Version},
-			AddInternalObjectsToScheme: alwaysqualifyimagesapi.AddToScheme,
-		},
-		announced.VersionToSchemeFunc{
-			alwaysqualifyimagesv1alpha1.SchemeGroupVersion.Version: alwaysqualifyimagesv1alpha1.AddToScheme,
-		},
-	).Announce(groupFactoryRegistry).RegisterAndEnable(registry, scheme); err != nil {
+// availableVersions lists all known external versions for this group from most preferred to least preferred
+var availableVersions = []schema.GroupVersion{v1.SchemeGroupVersion}
+
+func init() {
+	if err := enableVersions(availableVersions); err != nil {
 		panic(err)
+	}
+}
+
+// TODO: enableVersions should be centralized rather than spread in each API group.
+func enableVersions(externalVersions []schema.GroupVersion) error {
+	addVersionsToScheme(externalVersions...)
+	return nil
+}
+
+func addVersionsToScheme(externalVersions ...schema.GroupVersion) {
+	// add the internal version to Scheme
+	api.AddToScheme(configapi.Scheme)
+	// add the enabled external versions to Scheme
+	for _, v := range externalVersions {
+		switch v {
+		case v1.SchemeGroupVersion:
+			v1.AddToScheme(configapi.Scheme)
+		default:
+			glog.Errorf("Version %s is not known, so it will not be added to the Scheme.", v)
+			continue
+		}
 	}
 }

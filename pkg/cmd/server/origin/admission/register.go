@@ -36,6 +36,7 @@ import (
 	"k8s.io/apiserver/pkg/admission/plugin/namespace/lifecycle"
 
 	configlatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
+	"github.com/openshift/origin/pkg/image/admission/alwaysqualifyimages"
 )
 
 // TODO register this per apiserver or at least per process
@@ -55,6 +56,7 @@ func RegisterAllAdmissionPlugins(plugins *admission.Plugins) {
 	buildstrategyrestrictions.Register(plugins)
 	imageadmission.Register(plugins)
 	imagepolicy.Register(plugins)
+	alwaysqualifyimages.Register(plugins)
 	ingressadmission.Register(plugins)
 	projectlifecycle.Register(plugins)
 	projectnodeenv.Register(plugins)

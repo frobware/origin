@@ -21,16 +21,17 @@ import (
 	"fmt"
 
 	"github.com/golang/glog"
+	"github.com/openshift/origin/pkg/image/qualify"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apiserver/pkg/admission"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/util/parsers"
-	"github.com/openshift/origin/pkg/image/qualify"
 )
 
 // AlwaysQualifyImages is an implementation of admission.Interface. It
 // looks at all new pods and overrides any container's image name that
-// is unqualified and adds domain.
+// is unqualified and adds domain based on a set of rules. If no rule
+// matches then the image name is left unqualified.
 type AlwaysQualifyImages struct {
 	*admission.Handler
 	domain string

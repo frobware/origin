@@ -25,7 +25,6 @@ type Configuration struct {
 	metav1.TypeMeta `json:",inline"`
 
 	// Domain whose consumption is limited by default.
-	// +optional
 	Domain string `json:"domain"`
 }
 

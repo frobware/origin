@@ -19,7 +19,7 @@ package alwaysqualifyimages
 import (
 	"errors"
 
-	"k8s.io/kubernetes/pkg/util/parsers"
+	"github.com/openshift/origin/pkg/image/qualify"
 )
 
 const sanityRepo = "foo/bar:latest"
@@ -28,7 +28,7 @@ const sanityRepo = "foo/bar:latest"
 // used as the registry component for a docker image reference.
 // Returns an error if domain would be invalid.
 func ValidateDomain(domain string) error {
-	registry, remainder, err := parsers.SplitImageName(domain + "/" + sanityRepo)
+	registry, remainder, err := qualify.SplitImageName(domain + "/" + sanityRepo)
 	if err != nil {
 		return err
 	}
