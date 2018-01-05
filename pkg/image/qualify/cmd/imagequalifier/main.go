@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+
+	"github.com/openshift/origin/pkg/image/qualify"
 )
 
 func ruleError(e *qualify.RuleError) string {
@@ -56,8 +58,7 @@ func main() {
 	_, qualifiedImage := qualify.Qualify(imageref, rules)
 
 	if qualifiedImage == "" {
-		fmt.Printf("No match for %q\n", imageref)
-		os.Exit(1)
+		qualifiedImage = imageref
 	}
 
 	fmt.Println(qualifiedImage)
