@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package qualifier_test
+package qualify_test
 
 import (
 	"bytes"
@@ -22,10 +22,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/openshift/origin/pkg/image/qualifier"
+	"github.com/openshift/origin/pkg/image/qualify"
 )
 
-func patterns(rules []qualifier.Rule) []string {
+func patterns(rules []qualify.Rule) []string {
 	names := make([]string, len(rules))
 
 	for i := range rules {
@@ -35,8 +35,8 @@ func patterns(rules []qualifier.Rule) []string {
 	return names
 }
 
-func testRules(names []string) []qualifier.Rule {
-	rules := make([]qualifier.Rule, len(names))
+func testRules(names []string) []qualify.Rule {
+	rules := make([]qualify.Rule, len(names))
 
 	for i, name := range names {
 		rules[i].Pattern = name
@@ -107,11 +107,11 @@ func TestSort(t *testing.T) {
 	}}
 
 	for i, tc := range testcases {
-		rules, err := qualifier.ParseInput("", makeTestInput(tc.input, "example.com"))
+		rules, err := qualify.ParseInput("", makeTestInput(tc.input, "example.com"))
 		if err != nil {
 			t.Fatalf("test #%v: unexpected error: %s", err)
 		}
-		sorted := patterns(qualifier.SortRules(rules))
+		sorted := patterns(qualify.SortRules(rules))
 
 		if !reflect.DeepEqual(tc.expected, sorted) {
 			// for i := len(sorted) - 1; i >= 0; i-- {

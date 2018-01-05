@@ -3,7 +3,7 @@
 // This copy is amended to allow wilcard (i.e., '*') characters
 // anywhere in an image reference with the exception of the digest.
 
-package qualifier
+package qualify
 
 import "regexp"
 

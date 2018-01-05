@@ -20,11 +20,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-
-	"github.com/openshift/origin/pkg/image/qualifier"
 )
 
-func ruleError(e *qualifier.RuleError) string {
+func ruleError(e *qualify.RuleError) string {
 	return fmt.Sprintf("%q:%v: %q: %s", e.Filename, e.LineNum, e.Line, e.Message)
 }
 
@@ -36,7 +34,7 @@ func main() {
 	}
 
 	filename, imageref := os.Args[1], os.Args[2]
-	domain, _, err := qualifier.SplitImageName(imageref)
+	domain, _, err := qualify.SplitImageName(imageref)
 
 	if err != nil {
 		log.Fatalf("%q is an invalid image reference: %q", imageref, err.Error())
@@ -46,16 +44,16 @@ func main() {
 		log.Fatalf("%q already has a domain component", imageref)
 	}
 
-	rules, err := qualifier.ParseRules(filename)
+	rules, err := qualify.ParseRules(filename)
 
 	if err != nil {
-		if v, ok := err.(*qualifier.RuleError); ok {
+		if v, ok := err.(*qualify.RuleError); ok {
 			log.Fatalf("error loading rules: %s", ruleError(v))
 		}
 		log.Fatalf("error loading rules %q: %s", filename, err)
 	}
 
-	_, qualifiedImage := qualifier.Qualify(imageref, rules)
+	_, qualifiedImage := qualify.Qualify(imageref, rules)
 
 	if qualifiedImage == "" {
 		fmt.Printf("No match for %q\n", imageref)

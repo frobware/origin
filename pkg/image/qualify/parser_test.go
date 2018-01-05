@@ -14,22 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package qualifier_test
+package qualify_test
 
 import (
 	"testing"
 
-	"github.com/openshift/origin/pkg/image/qualifier"
+	"github.com/openshift/origin/pkg/image/qualify"
 )
 
 func TestParseNilInput(t *testing.T) {
-	if _, err := qualifier.ParseInput("", nil); err == nil {
+	if _, err := qualify.ParseInput("", nil); err == nil {
 		t.Fatalf("expected an error")
 	}
 }
 
 func TestParseOpenDirectoryErrors(t *testing.T) {
-	_, err := qualifier.ParseInput("testdata", nil)
+	_, err := qualify.ParseInput("testdata", nil)
 	if err == nil {
 		t.Fatalf("expected an error")
 	}
@@ -41,7 +41,7 @@ func TestParseOpenDirectoryErrors(t *testing.T) {
 }
 
 func TestParseNonExistentFile(t *testing.T) {
-	_, err := qualifier.ParseInput("testdata/does-not-exist", nil)
+	_, err := qualify.ParseInput("testdata/does-not-exist", nil)
 	if err == nil {
 		t.Fatalf("expected an error")
 	}
@@ -53,7 +53,7 @@ func TestParseNonExistentFile(t *testing.T) {
 }
 
 func TestParseEmptyFilename(t *testing.T) {
-	rules, err := qualifier.ParseInput("testdata/emptyfile", nil)
+	rules, err := qualify.ParseInput("testdata/emptyfile", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -63,7 +63,7 @@ func TestParseEmptyFilename(t *testing.T) {
 }
 
 func TestParseEmptyInput(t *testing.T) {
-	rules, err := qualifier.ParseInput("", "")
+	rules, err := qualify.ParseInput("", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -73,7 +73,7 @@ func TestParseEmptyInput(t *testing.T) {
 }
 
 func TestParseInvalidInputErrors(t *testing.T) {
-	if _, err := qualifier.ParseInput("", map[string]bool{}); err == nil {
+	if _, err := qualify.ParseInput("", map[string]bool{}); err == nil {
 		t.Fatalf("expected an error")
 	}
 }
@@ -82,7 +82,7 @@ func TestParseLineFormatErrors(t *testing.T) {
 	content := `
 # Too many fields
 a b c`
-	_, err := qualifier.ParseInput("", content)
+	_, err := qualify.ParseInput("", content)
 	if err == nil {
 		t.Fatalf("expected an error")
 	}
@@ -97,12 +97,12 @@ a b c`
 func TestParseInvalidPattern(t *testing.T) {
 	content := `
 []a] foo.io`
-	_, err := qualifier.ParseInput("", content)
+	_, err := qualify.ParseInput("", content)
 	if err == nil {
 		t.Fatalf("expected an error")
 	}
 
-	ruleErr, ok := err.(*qualifier.RuleError)
+	ruleErr, ok := err.(*qualify.RuleError)
 	if !ok {
 		t.Fatalf("expected a RuleError; got %T", err)
 	}
@@ -134,12 +134,12 @@ func TestParseInvalidDomain(t *testing.T) {
 `
 	content += badrule
 
-	_, err := qualifier.ParseInput("", content)
+	_, err := qualify.ParseInput("", content)
 	if err == nil {
 		t.Fatalf("expected an error")
 	}
 
-	ruleErr, ok := err.(*qualifier.RuleError)
+	ruleErr, ok := err.(*qualify.RuleError)
 	if !ok {
 		t.Fatalf("expected a RuleError; got %T", err)
 	}
@@ -166,7 +166,7 @@ func TestParseInvalidDomain(t *testing.T) {
 }
 
 func TestParseKnownGoodRules(t *testing.T) {
-	rules, err := qualifier.ParseInput("testdata/parser-rules", nil)
+	rules, err := qualify.ParseInput("testdata/parser-rules", nil)
 	if err != nil {
 		t.Fatalf("unexpected error; got %s", err)
 	}
