@@ -19,12 +19,28 @@ package alwaysqualifyimages
 import (
 	"io"
 
+	"github.com/golang/glog"
+	"github.com/openshift/origin/pkg/image/admission/alwaysqualifyimages/apis/alwaysqualifyimages/validation"
 	"k8s.io/apiserver/pkg/admission"
 )
 
 // Register registers a plugin.
 func Register(plugins *admission.Plugins) {
 	plugins.Register("AlwaysQualifyImages", func(config io.Reader) (admission.Interface, error) {
-		return NewAlwaysQualifyImages("docker.io"), nil
+		configuration, err := loadConfiguration(config)
+		if err != nil {
+			return nil, err
+		}
+		// validate the configuration (if any)
+		if configuration != nil {
+			if errs := validation.ValidateConfiguration(configuration); len(errs) != 0 {
+				return nil, errs.ToAggregate()
+			}
+		}
+		if err := ValidateDomain(configuration.Domain); err != nil {
+			return nil, err
+		}
+		glog.V(2).Infof("AlwaysQualifyImages %+v", configuration)
+		return NewAlwaysQualifyImages(configuration.Domain), nil
 	})
 }

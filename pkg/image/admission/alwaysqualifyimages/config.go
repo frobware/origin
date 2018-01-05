@@ -15,3 +15,46 @@ limitations under the License.
 */
 
 package alwaysqualifyimages
+
+import (
+	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+
+	"k8s.io/apimachinery/pkg/apimachinery/announced"
+	"k8s.io/apimachinery/pkg/apimachinery/registered"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+
+	alwaysqualifyimagesapi "github.com/openshift/origin/pkg/image/admission/alwaysqualifyimages/apis/alwaysqualifyimages"
+)
+
+var (
+	groupFactoryRegistry = make(announced.APIGroupFactoryRegistry)
+	registry             = registered.NewOrDie(os.Getenv("KUBE_API_VERSIONS"))
+	scheme               = runtime.NewScheme()
+	codecs               = serializer.NewCodecFactory(scheme)
+)
+
+func loadConfiguration(config io.Reader) (*alwaysqualifyimagesapi.Configuration, error) {
+	// if no config is provided, return a default configuration
+	if config == nil {
+		return &alwaysqualifyimagesapi.Configuration{}, nil
+	}
+	// we have a config so parse it.
+	data, err := ioutil.ReadAll(config)
+	if err != nil {
+		return nil, err
+	}
+	decoder := codecs.UniversalDecoder()
+	decodedObj, err := runtime.Decode(decoder, data)
+	if err != nil {
+		return nil, err
+	}
+	alwaysqualifyimagesConfiguration, ok := decodedObj.(*alwaysqualifyimagesapi.Configuration)
+	if !ok {
+		return nil, fmt.Errorf("unexpected type: %T", decodedObj)
+	}
+	return alwaysqualifyimagesConfiguration, nil
+}
