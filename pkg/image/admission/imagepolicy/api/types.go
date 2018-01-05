@@ -37,16 +37,6 @@ type ImagePolicyConfig struct {
 	// ExecutionRules determine whether the use of an image is allowed in an object with a pod spec.
 	// By default, these rules only apply to pods, but may be extended to other resource types.
 	ExecutionRules []ImageExecutionPolicyRule
-
-	// QualifyRules is a new-line separated list of patterns and
-	// associated domains for qualifying unqualified image names.
-	QualifyRules string
-
-	// QualifyRules is the filename that contains the list of
-	// patterns and associated domains for qualifying unqualified
-	// image names. If set, this takes precendence over
-	// QualifyRules.
-	QualifyRulesFilename string
 }
 
 // ImageResolutionType is an enumerated string that indicates how image pull spec resolution should be handled

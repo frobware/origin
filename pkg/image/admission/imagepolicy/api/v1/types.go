@@ -26,16 +26,6 @@ type ImagePolicyConfig struct {
 	// If all execution rules are negations, the default behavior is allow all. If any execution rule
 	// is an allow, the default behavior is to reject all.
 	ExecutionRules []ImageExecutionPolicyRule `json:"executionRules"`
-
-	// QualifyRules is a new-line separated list of patterns and
-	// associated domains for qualifying unqualified image names.
-	QualifyRules string `json:"qualifyRules"`
-
-	// QualifyRules is the filename that contains the list of
-	// patterns and associated domains for qualifying unqualified
-	// image names. If set, this takes precendence over
-	// QualifyRules.
-	QualifyRulesFilename string `json:"qualifyRulesFilename"`
 }
 
 // ImageResolutionType is an enumerated string that indicates how image pull spec resolution should be handled
