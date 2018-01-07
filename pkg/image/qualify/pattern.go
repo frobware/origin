@@ -79,12 +79,12 @@ func parsePattern(s string) (*pattern, error) {
 	p := &pattern{Pattern: s}
 
 	p.domain, p.path = splitDomain(matches[1])
-	p.library, p.image = splitPath(p.path)
-	p.tag = matches[2]
+	// p.library, p.image = splitPath(p.path)
+	// p.tag = matches[2]
 
 	if matches[3] != "" {
 		var err error
-		p.digest, err = digest.Parse(matches[3])
+		// p.digest, err = digest.Parse(matches[3])
 		if err != nil {
 			return nil, err
 		}

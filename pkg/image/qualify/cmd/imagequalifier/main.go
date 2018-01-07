@@ -24,8 +24,14 @@ import (
 	"github.com/openshift/origin/pkg/image/qualify"
 )
 
-func ruleError(e *qualify.RuleError) string {
-	return fmt.Sprintf("%q:%v: %q: %s", e.Filename, e.Index, e.Line, e.Message)
+func ruleError(filename string, e *qualify.RuleError) string {
+	if e.InvalidDomain != "" {
+		return fmt.Sprintf("%q:%v: invalid domain %q: %s", filename, e.LineNumber, e.InvalidDomain, e.Message)
+	} else if e.InvalidPattern != "" {
+		return fmt.Sprintf("%q:%v: invalid pattern %q: %s", filename, e.LineNumber, e.InvalidPattern, e.Message)
+	} else {
+		return fmt.Sprintf("%q:%v: %q: %s", filename, e.LineNumber, e.Definition, e.Message)
+	}
 }
 
 func main() {
@@ -46,11 +52,11 @@ func main() {
 		log.Fatalf("%q already has a domain component", imageref)
 	}
 
-	rules, err := qualify.ParseRules(filename)
+	rules, err := qualify.LoadRules(filename)
 
 	if err != nil {
 		if v, ok := err.(*qualify.RuleError); ok {
-			log.Fatalf("error loading rules: %s", ruleError(v))
+			log.Fatalf(ruleError(filename, v))
 		}
 		log.Fatalf("error loading rules %q: %s", filename, err)
 	}

@@ -17,27 +17,13 @@ limitations under the License.
 package qualify
 
 import (
-	"bufio"
-	"bytes"
-	"io"
 	"io/ioutil"
 )
 
-func readLines(input io.Reader) []string {
-	lines := []string{}
-	scanner := bufio.NewScanner(input)
-
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-
-	return lines
-}
-
-func ParseDefinitions(filename string) ([]Rule, error) {
+func LoadRules(filename string) ([]Rule, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
-	return ParseRules(readLines(bytes.NewReader(content)))
+	return ParseRules(string(content))
 }

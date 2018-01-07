@@ -23,13 +23,13 @@ import (
 )
 
 func TestParseNilInput(t *testing.T) {
-	if _, err := qualify.ParseDefinitions(""); err == nil {
+	if _, err := qualify.LoadRules(""); err == nil {
 		t.Fatalf("expected an error")
 	}
 }
 
 func TestParseOpenDirectoryErrors(t *testing.T) {
-	_, err := qualify.ParseDefinitions("testdata")
+	_, err := qualify.LoadRules("testdata")
 	if err == nil {
 		t.Fatalf("expected an error")
 	}
@@ -41,7 +41,7 @@ func TestParseOpenDirectoryErrors(t *testing.T) {
 }
 
 func TestParseNonExistentFile(t *testing.T) {
-	_, err := qualify.ParseDefinitions("testdata/does-not-exist")
+	_, err := qualify.LoadRules("testdata/does-not-exist")
 	if err == nil {
 		t.Fatalf("expected an error")
 	}
@@ -53,17 +53,7 @@ func TestParseNonExistentFile(t *testing.T) {
 }
 
 func TestParseEmptyFilename(t *testing.T) {
-	rules, err := qualify.ParseDefinitions("testdata/emptyfile")
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	if len(rules) != 0 {
-		t.Fatalf("expected no rules")
-	}
-}
-
-func TestParseEmptyInput(t *testing.T) {
-	rules, err := qualify.ParseDefinitions("")
+	rules, err := qualify.LoadRules("testdata/emptyfile")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}

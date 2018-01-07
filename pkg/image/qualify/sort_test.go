@@ -17,8 +17,10 @@ limitations under the License.
 package qualify_test
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/openshift/origin/pkg/image/qualify"
@@ -34,95 +36,152 @@ func patterns(rules []qualify.Rule) []string {
 	return names
 }
 
-func testRules(names []string) []qualify.Rule {
-	rules := make([]qualify.Rule, len(names))
+func addDomain(input string) string {
+	var bb bytes.Buffer
 
-	for i, name := range names {
-		rules[i].Pattern = name
+	for i, line := range strings.Split(input, "\n") {
+		for j, word := range strings.Fields(line) {
+			bb.WriteString(fmt.Sprintf("%s domain-%v.com\n", word, i+j))
+		}
 	}
 
-	return rules
+	return bb.String()
 }
 
-func makeTestInput(patterns []string) []string {
-	rules := make([]string, len(patterns))
-
-	for i := range patterns {
-		rules[i] = fmt.Sprintf("%s domain-%v.com\n", patterns[i], i)
-	}
-
-	return rules
-}
-
-func TestSort(t *testing.T) {
+func TestSortXXX(t *testing.T) {
 	var testcases = []struct {
-		input    []string
-		expected []string
+		description string
+		input       string
+		expected    string
 	}{{
-		input: []string{
-			"*",
-			"*me",
-			"*/*/*:latest",
-			"*/*/*",
-			"*/*:latest",
-			"foo*:latest",
-			"repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-			"repo/busybox:1",
-			"repo/busybox:latest",
-			"repo/busybox:*",
-			"repo/busybox",
-			"repo/busy",
-			"qwerty/busybox",
-			"*/*busy",
-			"repo/*",
-			"repo/busy*",
-			"busybox",
-			"*/*",
-			"busy",
-			"*you",
-		},
-		expected: []string{
-			"*",
-			"*/*",
-			"*/*/*",
-			"repo/*",
-			"*/*busy",
-			"*me",
-			"*you",
-			"busy",
-			"repo/busy",
-			"l/busybox:*@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-			"repo/busy*",
-			"busybox",
-			"qwerty/busybox",
-			"repo/busybox:*",
-			"repo/busybox",
-			"repo/busybox:1",
-			"*/*:latest",
-			"*/*/*:latest",
-			"repo/busybox:latest",
-			"foo*:latest",
-			"repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-		},
+		description: "default order is collating sequence",
+		input:       "c b a",
+		expected:    "a b c",
+	}, {
+		description: "wildcard default order is collating sequence",
+		input:       "*/*/*@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff */*/* * */*/*:latest */*",
+		expected:    "* */* */*/* */*/*:latest */*/*@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		description: "default order is collating sequence, even for library components",
+		input:       "foo/emacs foo/vim emacs vim foo/* */* *",
+		expected:    "* */* emacs foo/* foo/emacs foo/vim vim",
+	}, {
+		description: "wild cards sort lower",
+		input:       "a*b abc */* * */*/*",
+		expected:    "* */* */*/* a*b abc",
+	}, {
+		description: "tags sort lower",
+		input:       "abc abc:latest */* *",
+		expected:    "* */* abc abc:latest",
+	}, {
+		description: "digests sort lower",
+		input:       "abc abc@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff */* *",
+		expected:    "* */* abc abc@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+	}, {
+		description: "image references with library sort lower",
+		input:       "foo/emacs foo/vim emacs vim */* *",
+		expected:    "* */* emacs foo/emacs foo/vim vim",
+	}, {
+		description: "wildcard library references sort lower",
+		input:       "foo/emacs */vim emacs vim */* *",
+		expected:    "* */* */vim emacs foo/emacs vim",
+	}, {
+		description: "wildcard tags sort lower",
+		input:       "foo/emacs:* */vim foo/emacs emacs vim */* *",
+		expected:    "* */* */vim emacs foo/emacs foo/emacs:* vim",
 	}}
 
 	for i, tc := range testcases {
-		rules, err := qualify.ParseRules(makeTestInput(tc.input))
+		rules, err := qualify.ParseRules(addDomain(tc.input))
+		if err != nil {
+			t.Fatalf("test #%v: unexpected error: %s", i, err)
+		}
+
+		expected, err := qualify.ParseRules(addDomain(tc.expected))
 		if err != nil {
 			t.Fatalf("test #%v: unexpected error: %s", err)
 		}
+
 		sorted := patterns(qualify.SortRules(rules))
 
-		if !reflect.DeepEqual(tc.expected, sorted) {
-			// for i := len(sorted) - 1; i >= 0; i-- {
-			// 	t.Errorf("%q", sorted[i])
-			// }
-			// t.Errorf("\n\n\n")
+		if !reflect.DeepEqual(patterns(expected), sorted) {
+			t.Errorf("test #%v: expected %#v, got %#v", i, patterns(expected), sorted)
 
-			// for i := range sorted {
-			// 	t.Errorf("%q", sorted[i])
-			// }
-			t.Errorf("test #%v: expected %#v, got %#v", i, tc.expected, sorted)
 		}
 	}
 }
+
+// func TestSort(t *testing.T) {
+// 	var testcases = []struct {
+// 		input    []string
+// 		expected []string
+// 	}{{
+// 		input: []string{
+// 			"*",
+// 			"*me",
+// 			"*/*/*:latest",
+// 			"*/*/*",
+// 			"*/*:latest",
+// 			"foo*:latest",
+// 			"repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+// 			"repo/busybox:1",
+// 			"repo/busybox:latest",
+// 			"repo/busybox:*",
+// 			"repo/busybox",
+// 			"repo/busy",
+// 			"qwerty/busybox",
+// 			"*/*busy",
+// 			"repo/*",
+// 			"repo/busy*",
+// 			"busybox",
+// 			"*/*",
+// 			"busy",
+// 			"*you",
+// 		},
+// 		expected: []string{
+// 			"*",
+// 			"*/*",
+// 			"*/*/*",
+// 			"repo/*",
+// 			"*/*busy",
+// 			"*me",
+// 			"*you",
+// 			"sort.com/*/*you",
+// 			"busy",
+// 			"repo/busy",
+// 			"l/busybox:*@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+// 			"repo/busy*",
+// 			"busybox",
+// 			"qwerty/busybox",
+// 			"repo/busybox:*",
+// 			"repo/busybox",
+// 			"repo/busybox:1",
+// 			"*/*:latest",
+// 			"*/*/*:latest",
+// 			"repo/busybox:latest",
+// 			"foo*:latest",
+// 			"repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+// 		},
+// 	}}
+
+// 	for _, tc := range testcases {
+// 		rules, err := qualify.ParseRules(inputToRule(tc.input))
+// 		if err != nil {
+// 			t.Fatalf("test #%v: unexpected error: %s", err)
+// 		}
+// 		sorted := patterns(qualify.SortRules(rules))
+
+// 		if !reflect.DeepEqual(tc.expected, sorted) {
+// 			// for i := len(sorted) - 1; i >= 0; i-- {
+// 			// 	t.Errorf("%q", sorted[i])
+// 			// }
+// 			// t.Errorf("\n\n\n")
+
+// 			// for i := range sorted {
+// 			// 	t.Errorf("%q", sorted[i])
+// 			// }
+// 			// t.Errorf("test #%v: expected %#v, got %#v", i, tc.expect
+// 			//				ed, sorted)
+// 		}
+// 	}
+// }

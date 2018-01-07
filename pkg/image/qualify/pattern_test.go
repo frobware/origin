@@ -34,20 +34,17 @@ func TestPatternParseWithWildcards(t *testing.T) {
 		pattern: "*:*",
 		expected: pattern{
 			path: "*",
-			tag:  "*",
 		},
 	}, {
 		pattern: "*/*:*",
 		expected: pattern{
 			path: "*/*",
-			tag:  "*",
 		},
 	}, {
 		pattern: "*/*/*:*",
 		expected: pattern{
 			domain: "*",
 			path:   "*/*",
-			tag:    "*",
 		},
 	}}
 
@@ -88,13 +85,11 @@ func TestPatternParseNoWildcards(t *testing.T) {
 		pattern: "repo/nginx:latest",
 		expected: pattern{
 			path: "repo/nginx",
-			tag:  "latest",
 		},
 	}, {
 		pattern: "library/nginx:latest@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 		expected: pattern{
 			path:   "library/nginx",
-			tag:    "latest",
 			digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 		},
 	}, {
@@ -133,14 +128,12 @@ func TestPatternParseNoWildcards(t *testing.T) {
 		expected: pattern{
 			domain: "localhost:5000",
 			path:   "emacs",
-			tag:    "latest",
 		},
 	}, {
 		pattern: "localhost:5000/emacs:latest@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 		expected: pattern{
 			domain: "localhost:5000",
 			path:   "emacs",
-			tag:    "latest",
 			digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 		},
 	}, {

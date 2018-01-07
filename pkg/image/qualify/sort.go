@@ -189,27 +189,33 @@ func sortRules(rules []Rule) []Rule {
 
 		patternSorter = patternSorter
 
-		orderBy(library, path, domain, tag, digest).Sort(explicitRules)
-		orderBy(library, path, domain, tag, digest).Sort(wildcardRules)
-		orderBy(library, path, domain, tag, digest).Sort(rules)
-		orderBy(path, domain, tag, digest).Sort(rules)
-		orderBy(path, domain, tag, digest).Sort(rules)
-		orderBy(path, domain).Sort(rules)
+		// orderBy(library, path, domain, tag, digest).Sort(explicitRules)
+		// orderBy(library, path, domain, tag, digest).Sort(wildcardRules)
+		// orderBy(library, path, domain, tag, digest).Sort(rules)
+		// orderBy(path, domain, tag, digest).Sort(rules)
+		// orderBy(path, domain, tag, digest).Sort(rules)
+		// orderBy(path, domain).Sort(rules)
+		// orderBy(patternSorter).Sort(wildcardRules)
+		// orderBy(patternSorter).Sort(explicitRules)
+
+		rules = append(wildcardRules, explicitRules...)
+
+		orderBy(patternSorter).Sort(rules)
 	}
 
 	// sort.Slice(rules, func(i, j int) bool {
 	// 	return ruleCompare(rules[i], rules[j])
 	// })
 
-	sort.Slice(explicitRules, func(i, j int) bool {
-		return ruleCompare(explicitRules[i], explicitRules[j])
-	})
+	// sort.Slice(explicitRules, func(i, j int) bool {
+	// 	return ruleCompare(explicitRules[i], explicitRules[j])
+	// })
 
-	sort.Slice(wildcardRules, func(i, j int) bool {
-		return ruleCompare(wildcardRules[i], wildcardRules[j])
-	})
+	// sort.Slice(wildcardRules, func(i, j int) bool {
+	// 	return ruleCompare(wildcardRules[i], wildcardRules[j])
+	// })
 
-	rules = append(wildcardRules, explicitRules...)
+	// rules = append(wildcardRules, explicitRules...)
 
 	for i := range rules {
 		fmt.Printf("%s\t\tdomain-%v.com\n", rules[i].Pattern, i)

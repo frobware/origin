@@ -16,14 +16,17 @@ limitations under the License.
 
 package qualify
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // RuleError captures an invalid rule definition.
 type RuleError struct {
 	Definition     string
-	Index          int
-	InvalidDomain  string
-	InvalidPattern string
+	LineNumber     int
+	InvalidDomain  string // split these into discrete errors
+	InvalidPattern string // split these into discrete errors
 	Message        string
 }
 
@@ -33,28 +36,27 @@ type Rule struct {
 }
 
 // Error returns the parsing error.
-func (p *RuleError) Error() string {
-	return p.Message
+func (p RuleError) Error() string {
+	return fmt.Sprintf("line %v: invalid definition: %q: %s", p.LineNumber, p.Definition, p.Message)
 }
 
-func ParseRules(definitions []string) ([]Rule, error) {
-	rules := make([]Rule, 0, len(definitions))
+func ParseRules(input string) ([]Rule, error) {
+	lines := strings.Split(input, "\n")
+	rules := make([]Rule, 0, len(lines))
 
-	for i, line := range definitions {
+	for i, line := range lines {
+		line = strings.TrimSpace(line)
+
+		if line == "" || strings.HasPrefix(line, "#") {
+			// Skip blank lines and comments
+			continue
+		}
+
 		words := strings.Fields(line)
-
-		if len(words) == 0 {
-			continue
-		}
-
-		if strings.HasPrefix(strings.TrimSpace(words[0]), "#") {
-			continue
-		}
-
 		if len(words) != 2 {
 			return nil, &RuleError{
 				Definition: strings.TrimSpace(line),
-				Index:      i + 1,
+				LineNumber: i + 1,
 				Message:    "expected fields: pattern domain",
 			}
 		}
@@ -62,8 +64,8 @@ func ParseRules(definitions []string) ([]Rule, error) {
 		pattern, err := parsePattern(words[0])
 		if err != nil {
 			return nil, &RuleError{
-				Definition:     strings.TrimSpace(line),
-				Index:          i + 1,
+				Definition:     line,
+				LineNumber:     i + 1,
 				InvalidPattern: words[0],
 				Message:        err.Error(),
 			}
@@ -71,8 +73,8 @@ func ParseRules(definitions []string) ([]Rule, error) {
 
 		if err := validateDomain(words[1]); err != nil {
 			return nil, &RuleError{
-				Definition:    strings.TrimSpace(line),
-				Index:         i + 1,
+				Definition:    line,
+				LineNumber:    i + 1,
 				InvalidDomain: words[1],
 				Message:       err.Error(),
 			}

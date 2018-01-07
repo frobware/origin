@@ -19,7 +19,6 @@ package qualify_test
 import (
 	"regexp"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/openshift/origin/pkg/image/qualify"
@@ -53,7 +52,7 @@ func testName() string {
 }
 
 func testQualify(t *testing.T, input string, tests []testcase) {
-	rules, err := qualify.ParseRules(strings.Split(input, "\n"))
+	rules, err := qualify.ParseRules(input)
 
 	if err != nil {
 		t.Fatalf("unexpected error; got %#v", err)

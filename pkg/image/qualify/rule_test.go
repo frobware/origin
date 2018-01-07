@@ -17,19 +17,18 @@ limitations under the License.
 package qualify_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/openshift/origin/pkg/image/qualify"
 )
 
 func TestRuleLineInvalidFieldCount(t *testing.T) {
-	_, err := qualify.ParseRules(strings.Split("a b c", "\n"))
+	_, err := qualify.ParseRules("a b c")
 	if err == nil {
 		t.Fatalf("expected an error")
 	}
 
-	expected := "expected fields: pattern domain"
+	expected := `line 1: invalid definition: "a b c": expected fields: pattern domain`
 
 	if err.Error() != expected {
 		t.Errorf("expected %q, got %q", expected, err.Error())
@@ -39,7 +38,7 @@ func TestRuleLineInvalidFieldCount(t *testing.T) {
 func TestRuleInvalidPattern(t *testing.T) {
 	invalidPattern := "[]a]"
 
-	_, err := qualify.ParseRules(strings.Split(invalidPattern+" foo.io", "\n"))
+	_, err := qualify.ParseRules(invalidPattern + " foo.io")
 	if err == nil {
 		t.Fatalf("expected an error")
 	}
@@ -53,15 +52,15 @@ func TestRuleInvalidPattern(t *testing.T) {
 		t.Errorf("expected pattern=%q, got=%q", "[[a]", ruleErr.InvalidPattern)
 	}
 
-	if ruleErr.Index != 1 {
-		t.Errorf("expected error on line 1, got %v", ruleErr.Index)
+	if ruleErr.LineNumber != 1 {
+		t.Errorf("expected error on line 1, got %v", ruleErr.LineNumber)
 	}
 }
 
 func TestRuleInvalidDomain(t *testing.T) {
 	invalidDomain := "!foo.io"
 
-	_, err := qualify.ParseRules(strings.Split("busybox "+invalidDomain, "\n"))
+	_, err := qualify.ParseRules("busybox " + invalidDomain)
 	if err == nil {
 		t.Fatalf("expected an error")
 	}
@@ -75,7 +74,7 @@ func TestRuleInvalidDomain(t *testing.T) {
 		t.Errorf("expected %q, got %q", invalidDomain, ruleErr.InvalidDomain)
 	}
 
-	if ruleErr.Index != 1 {
-		t.Errorf("expected error on line 1, got %v", ruleErr.Index)
+	if ruleErr.LineNumber != 1 {
+		t.Errorf("expected error on line 1, got %v", ruleErr.LineNumber)
 	}
 }
