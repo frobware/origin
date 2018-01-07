@@ -25,7 +25,7 @@ import (
 )
 
 func ruleError(e *qualify.RuleError) string {
-	return fmt.Sprintf("%q:%v: %q: %s", e.Filename, e.LineNum, e.Line, e.Message)
+	return fmt.Sprintf("%q:%v: %q: %s", e.Filename, e.Index, e.Line, e.Message)
 }
 
 func main() {

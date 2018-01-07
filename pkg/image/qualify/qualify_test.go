@@ -19,6 +19,7 @@ package qualify_test
 import (
 	"regexp"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/openshift/origin/pkg/image/qualify"
@@ -52,10 +53,11 @@ func testName() string {
 }
 
 func testQualify(t *testing.T, input string, tests []testcase) {
-	rules, err := qualify.ParseInput("", input)
+	rules, err := qualify.ParseRules(strings.Split(input, "\n"))
 
 	if err != nil {
-		t.Fatalf("unexpected error; got %s", err)
+		t.Fatalf("unexpected error; got %#v", err)
+		panic(err)
 	}
 
 	for i, tc := range tests {
@@ -84,13 +86,6 @@ func testQualify(t *testing.T, input string, tests []testcase) {
 		if remainder != tc.image {
 			t.Errorf("%s: test #%v: expected image %q, got %q", testName(), i, tc.image, remainder)
 		}
-	}
-}
-
-func TestQualifyInvalidInput(t *testing.T) {
-	_, err := qualify.ParseInput("", map[string]bool{})
-	if err == nil {
-		t.Fatalf("expected error")
 	}
 }
 
@@ -133,7 +128,6 @@ func TestQualifyRepoAndImageAndTagsWithWildcard(t *testing.T) {
 	rules := `
     repo/busybox            production.io
     repo/busybox:v1*        v1.io
-    repo/busybox:v[7-9]*    v7.io
     repo/busybox:*          next.io`
 
 	tests := []testcase{{
@@ -148,15 +142,6 @@ func TestQualifyRepoAndImageAndTagsWithWildcard(t *testing.T) {
 	}, {
 		image:  "repo/busybox:v1.2.3",
 		domain: "v1.io",
-	}, {
-		image:  "repo/busybox:v5",
-		domain: "next.io",
-	}, {
-		image:  "repo/busybox:v7",
-		domain: "v7.io",
-	}, {
-		image:  "repo/busybox:v9",
-		domain: "v7.io",
 	}, {
 		image:  "repo/busybox:latest",
 		domain: "next.io",

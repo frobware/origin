@@ -16,7 +16,73 @@ limitations under the License.
 
 package qualify
 
+import "strings"
+
+// RuleError captures an invalid rule definition.
+type RuleError struct {
+	Definition     string
+	Index          int
+	InvalidDomain  string
+	InvalidPattern string
+	Message        string
+}
+
 type Rule struct {
 	Domain string
 	*pattern
+}
+
+// Error returns the parsing error.
+func (p *RuleError) Error() string {
+	return p.Message
+}
+
+func ParseRules(definitions []string) ([]Rule, error) {
+	rules := make([]Rule, 0, len(definitions))
+
+	for i, line := range definitions {
+		words := strings.Fields(line)
+
+		if len(words) == 0 {
+			continue
+		}
+
+		if strings.HasPrefix(strings.TrimSpace(words[0]), "#") {
+			continue
+		}
+
+		if len(words) != 2 {
+			return nil, &RuleError{
+				Definition: strings.TrimSpace(line),
+				Index:      i + 1,
+				Message:    "expected fields: pattern domain",
+			}
+		}
+
+		pattern, err := parsePattern(words[0])
+		if err != nil {
+			return nil, &RuleError{
+				Definition:     strings.TrimSpace(line),
+				Index:          i + 1,
+				InvalidPattern: words[0],
+				Message:        err.Error(),
+			}
+		}
+
+		if err := validateDomain(words[1]); err != nil {
+			return nil, &RuleError{
+				Definition:    strings.TrimSpace(line),
+				Index:         i + 1,
+				InvalidDomain: words[1],
+				Message:       err.Error(),
+			}
+		}
+
+		rules = append(rules, Rule{
+			Domain:  words[1],
+			pattern: pattern,
+		})
+	}
+
+	return rules, nil
 }

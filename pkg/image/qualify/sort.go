@@ -19,6 +19,7 @@ package qualify
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 type lessFunc func(x, y *pattern) bool
@@ -29,15 +30,15 @@ type patternSorter struct {
 }
 
 // Sort sorts the argument slice according to the less functions
-// passed to orderby.
+// passed to orderBy.
 func (ms *patternSorter) Sort(rules []Rule) {
 	ms.rules = rules
 	sort.Sort(ms)
 }
 
-// Orderby returns a Sorter that sorts using the less functions, in order.
+// OrderBy returns a Sorter that sorts using the less functions, in order.
 // Call its Sort method to sort the data.
-func orderby(less ...lessFunc) *patternSorter {
+func orderBy(less ...lessFunc) *patternSorter {
 	return &patternSorter{
 		less: less,
 	}
@@ -75,42 +76,39 @@ func (ms *patternSorter) Less(i, j int) bool {
 		// p == q; try the next comparison.
 	}
 
+	fmt.Println("EQ", p.Pattern, q.Pattern)
 	return ms.less[k](p.pattern, q.pattern)
 }
 
 func globcmp(a, b string) bool {
-	if a == "*" && b == "" {
-		return false
-	}
-	if a == "" && b == "*" {
-		return false
-	}
+	// if strings.HasPrefix(a, "*") && b != "" {
+	// 	return true
+	// }
+	// if a == "" && b == "*" {
+	// 	return false
+	// }
 	return a < b
 }
 
 func ruleCompare(a, b Rule) bool {
-	if string(a.pattern.digest) < string(b.pattern.digest) {
+	if globcmp(a.pattern.path, b.pattern.path) {
 		return true
-	} else if string(b.pattern.digest) < string(a.pattern.digest) {
+	} else if globcmp(b.pattern.path, a.pattern.path) {
 		return false
 	}
 
-	if globcmp(a.pattern.tag, b.pattern.tag) {
-		return true
-	} else if globcmp(b.pattern.tag, a.pattern.tag) {
-		return false
-	}
+	if false {
+		if globcmp(a.pattern.image, b.pattern.image) {
+			return true
+		} else if globcmp(b.pattern.image, a.pattern.image) {
+			return false
+		}
 
-	if globcmp(a.pattern.image, b.pattern.image) {
-		return true
-	} else if globcmp(b.pattern.image, a.pattern.image) {
-		return false
-	}
-
-	if globcmp(a.pattern.library, b.pattern.library) {
-		return true
-	} else if globcmp(b.pattern.library, a.pattern.library) {
-		return false
+		if globcmp(a.pattern.library, b.pattern.library) {
+			return true
+		} else if globcmp(b.pattern.library, a.pattern.library) {
+			return false
+		}
 	}
 
 	if globcmp(a.pattern.domain, b.pattern.domain) {
@@ -119,11 +117,44 @@ func ruleCompare(a, b Rule) bool {
 		return false
 	}
 
+	if true {
+		if globcmp(a.pattern.tag, b.pattern.tag) {
+			return true
+		} else if globcmp(b.pattern.tag, a.pattern.tag) {
+			return false
+		}
+
+		if string(a.pattern.digest) < string(b.pattern.digest) {
+			return true
+		} else if string(b.pattern.digest) < string(a.pattern.digest) {
+			return false
+		}
+	}
+
 	return false
 }
 
 func sortRules(rules []Rule) []Rule {
+	wildcardRules := make([]Rule, 0, len(rules))
+	explicitRules := make([]Rule, 0, len(rules))
+
+	for i := range rules {
+		if strings.Contains(rules[i].Pattern, "*") {
+			wildcardRules = append(wildcardRules, rules[i])
+		} else {
+			explicitRules = append(explicitRules, rules[i])
+		}
+	}
+
 	if true {
+		depth := func(x, y *pattern) bool {
+			return strings.Count(x.Pattern, "/") < strings.Count(y.Pattern, "/")
+		}
+
+		patternSorter := func(x, y *pattern) bool {
+			return globcmp(x.Pattern, y.Pattern)
+		}
+
 		digest := func(x, y *pattern) bool {
 			return string(x.digest) < string(y.digest)
 		}
@@ -148,15 +179,40 @@ func sortRules(rules []Rule) []Rule {
 			return globcmp(x.path, y.path)
 		}
 
-		orderby(digest, tag, image, library, path, domain).Sort(rules)
+		digest = digest
+		tag = tag
+		image = image
+		library = library
+		path = path
+		domain = domain
+		depth = depth
+
+		patternSorter = patternSorter
+
+		orderBy(library, path, domain, tag, digest).Sort(explicitRules)
+		orderBy(library, path, domain, tag, digest).Sort(wildcardRules)
+		orderBy(library, path, domain, tag, digest).Sort(rules)
+		orderBy(path, domain, tag, digest).Sort(rules)
+		orderBy(path, domain, tag, digest).Sort(rules)
+		orderBy(path, domain).Sort(rules)
 	}
 
-	sort.Slice(rules, func(i, j int) bool {
-		return ruleCompare(rules[i], rules[j])
+	// sort.Slice(rules, func(i, j int) bool {
+	// 	return ruleCompare(rules[i], rules[j])
+	// })
+
+	sort.Slice(explicitRules, func(i, j int) bool {
+		return ruleCompare(explicitRules[i], explicitRules[j])
 	})
 
+	sort.Slice(wildcardRules, func(i, j int) bool {
+		return ruleCompare(wildcardRules[i], wildcardRules[j])
+	})
+
+	rules = append(wildcardRules, explicitRules...)
+
 	for i := range rules {
-		fmt.Printf("%q,\n", rules[i].Pattern)
+		fmt.Printf("%s\t\tdomain-%v.com\n", rules[i].Pattern, i)
 	}
 	return rules
 }

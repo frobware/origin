@@ -18,6 +18,5 @@ package qualify
 
 var (
 	ValidateDomain = validateDomain
-	ParseInput     = parseInput
 	SortRules      = sortRules
 )

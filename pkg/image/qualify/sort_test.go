@@ -17,7 +17,6 @@ limitations under the License.
 package qualify_test
 
 import (
-	"bytes"
 	"fmt"
 	"reflect"
 	"testing"
@@ -45,14 +44,14 @@ func testRules(names []string) []qualify.Rule {
 	return rules
 }
 
-func makeTestInput(patterns []string, domain string) string {
-	var buffer bytes.Buffer
+func makeTestInput(patterns []string) []string {
+	rules := make([]string, len(patterns))
 
 	for i := range patterns {
-		buffer.WriteString(fmt.Sprintf("%s %s\n", patterns[i], domain))
+		rules[i] = fmt.Sprintf("%s domain-%v.com\n", patterns[i], i)
 	}
 
-	return buffer.String()
+	return rules
 }
 
 func TestSort(t *testing.T) {
@@ -92,6 +91,7 @@ func TestSort(t *testing.T) {
 			"*you",
 			"busy",
 			"repo/busy",
+			"l/busybox:*@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 			"repo/busy*",
 			"busybox",
 			"qwerty/busybox",
@@ -107,7 +107,7 @@ func TestSort(t *testing.T) {
 	}}
 
 	for i, tc := range testcases {
-		rules, err := qualify.ParseInput("", makeTestInput(tc.input, "example.com"))
+		rules, err := qualify.ParseRules(makeTestInput(tc.input))
 		if err != nil {
 			t.Fatalf("test #%v: unexpected error: %s", err)
 		}

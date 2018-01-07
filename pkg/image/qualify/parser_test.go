@@ -23,13 +23,13 @@ import (
 )
 
 func TestParseNilInput(t *testing.T) {
-	if _, err := qualify.ParseInput("", nil); err == nil {
+	if _, err := qualify.ParseDefinitions(""); err == nil {
 		t.Fatalf("expected an error")
 	}
 }
 
 func TestParseOpenDirectoryErrors(t *testing.T) {
-	_, err := qualify.ParseInput("testdata", nil)
+	_, err := qualify.ParseDefinitions("testdata")
 	if err == nil {
 		t.Fatalf("expected an error")
 	}
@@ -41,7 +41,7 @@ func TestParseOpenDirectoryErrors(t *testing.T) {
 }
 
 func TestParseNonExistentFile(t *testing.T) {
-	_, err := qualify.ParseInput("testdata/does-not-exist", nil)
+	_, err := qualify.ParseDefinitions("testdata/does-not-exist")
 	if err == nil {
 		t.Fatalf("expected an error")
 	}
@@ -53,7 +53,7 @@ func TestParseNonExistentFile(t *testing.T) {
 }
 
 func TestParseEmptyFilename(t *testing.T) {
-	rules, err := qualify.ParseInput("testdata/emptyfile", nil)
+	rules, err := qualify.ParseDefinitions("testdata/emptyfile")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -63,115 +63,11 @@ func TestParseEmptyFilename(t *testing.T) {
 }
 
 func TestParseEmptyInput(t *testing.T) {
-	rules, err := qualify.ParseInput("", "")
+	rules, err := qualify.ParseDefinitions("")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	if len(rules) != 0 {
 		t.Fatalf("expected no rules")
-	}
-}
-
-func TestParseInvalidInputErrors(t *testing.T) {
-	if _, err := qualify.ParseInput("", map[string]bool{}); err == nil {
-		t.Fatalf("expected an error")
-	}
-}
-
-func TestParseLineFormatErrors(t *testing.T) {
-	content := `
-# Too many fields
-a b c`
-	_, err := qualify.ParseInput("", content)
-	if err == nil {
-		t.Fatalf("expected an error")
-	}
-
-	expected := "invalid field count; expected <pattern> <domain>"
-
-	if err.Error() != expected {
-		t.Errorf("expected %q, got %q", expected, err.Error())
-	}
-}
-
-func TestParseInvalidPattern(t *testing.T) {
-	content := `
-[]a] foo.io`
-	_, err := qualify.ParseInput("", content)
-	if err == nil {
-		t.Fatalf("expected an error")
-	}
-
-	ruleErr, ok := err.(*qualify.RuleError)
-	if !ok {
-		t.Fatalf("expected a RuleError; got %T", err)
-	}
-
-	if ruleErr.Filename != "" {
-		t.Errorf(`filename should be ""`)
-	}
-
-	if ruleErr.Line != content[1:] {
-		t.Errorf("expected input=%q, got %q", content[1:], ruleErr.Line)
-	}
-
-	if ruleErr.LineNum != 2 {
-		t.Errorf("expected error on line 2, got %v", ruleErr.LineNum)
-	}
-
-	expected := "syntax error in pattern"
-
-	if expected != ruleErr.Error() {
-		t.Errorf("expected error %q, got %q", expected, ruleErr)
-	}
-}
-
-func TestParseInvalidDomain(t *testing.T) {
-	badrule := "busybox !foo.io!"
-	content := `
-# A comment line, followed by an empty blank line.
-
-`
-	content += badrule
-
-	_, err := qualify.ParseInput("", content)
-	if err == nil {
-		t.Fatalf("expected an error")
-	}
-
-	ruleErr, ok := err.(*qualify.RuleError)
-	if !ok {
-		t.Fatalf("expected a RuleError; got %T", err)
-	}
-
-	if ruleErr.Filename != "" {
-		t.Errorf(`Filename should be ""`)
-	}
-
-	if ruleErr.Line != badrule {
-		t.Errorf("expected input=%q, got %q", badrule, ruleErr.Line)
-	}
-
-	if ruleErr.LineNum != 4 {
-		t.Errorf("expected error on line 4, got %v", ruleErr.LineNum)
-	}
-
-	// XXX FIXME!
-
-	// expected := "invalid reference format"
-
-	// if expected != ruleErr.Error() {
-	// 	t.Errorf("expected error %q, got %q", expected, ruleErr)
-	// }
-}
-
-func TestParseKnownGoodRules(t *testing.T) {
-	rules, err := qualify.ParseInput("testdata/parser-rules", nil)
-	if err != nil {
-		t.Fatalf("unexpected error; got %s", err)
-	}
-
-	if len(rules) != 6 {
-		t.Errorf("expected 6 rules, got %v", len(rules))
 	}
 }

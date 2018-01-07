@@ -19,40 +19,9 @@ package qualify
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"io"
 	"io/ioutil"
-	"path"
-	"strings"
 )
-
-// RuleError captures an invalid rule definition.
-type RuleError struct {
-	Filename string // maybe "" if read from []byte or string
-	Line     string
-	LineNum  int
-	Message  string
-}
-
-// Error returns the parsing error.
-func (p *RuleError) Error() string {
-	return p.Message
-}
-
-// If src != nil, consume converts src to a []byte if possible,
-// otherwise it returns an error. If src == nil, consume returns the
-// result of reading the complete contents of filename, or an error if
-// consuming filename fails.
-func consume(filename string, src interface{}) ([]byte, error) {
-	if src == nil {
-		return ioutil.ReadFile(filename)
-	}
-	switch s := src.(type) {
-	case string:
-		return []byte(s), nil
-	}
-	return nil, errors.New("invalid source type")
-}
 
 func readLines(input io.Reader) []string {
 	lines := []string{}
@@ -65,72 +34,10 @@ func readLines(input io.Reader) []string {
 	return lines
 }
 
-func parseInput(filename string, src interface{}) ([]Rule, error) {
-	content, err := consume(filename, src)
+func ParseDefinitions(filename string) ([]Rule, error) {
+	content, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
-
-	lines := readLines(bytes.NewReader(content))
-	rules := make([]Rule, 0, len(lines))
-
-	for i, line := range lines {
-		words := strings.Fields(line)
-
-		if len(words) == 0 {
-			continue
-		}
-
-		if strings.HasPrefix(strings.TrimSpace(words[0]), "#") {
-			continue
-		}
-
-		if len(words) != 2 {
-			return nil, &RuleError{
-				Line:     line,
-				LineNum:  i + 1,
-				Filename: filename,
-				Message:  "invalid field count; expected <pattern> <domain>",
-			}
-		}
-
-		if _, err := path.Match(words[0], "doesnotmatter"); err != nil {
-			return nil, &RuleError{
-				Line:     line,
-				LineNum:  i + 1,
-				Filename: filename,
-				Message:  err.Error(),
-			}
-		}
-
-		if err := validateDomain(words[1]); err != nil {
-			return nil, &RuleError{
-				Line:     line,
-				LineNum:  i + 1,
-				Filename: filename,
-				Message:  err.Error(),
-			}
-		}
-
-		pattern, err := parsePattern(words[0])
-		if err != nil {
-			return nil, &RuleError{
-				Line:     line,
-				LineNum:  i + 1,
-				Filename: filename,
-				Message:  err.Error(),
-			}
-		}
-
-		rules = append(rules, Rule{
-			Domain:  words[1],
-			pattern: pattern,
-		})
-	}
-
-	return rules, nil
-}
-
-func ParseRules(filename string) ([]Rule, error) {
-	return parseInput(filename, nil)
+	return ParseRules(readLines(bytes.NewReader(content)))
 }

@@ -25,7 +25,7 @@ const imageRefWithoutDomain = "foo/bar:latest"
 // validateDomain validates that input (e.g., "myregistry.io") can be
 // used as the domain component in a docker image reference. Returns
 // an error if domain would be invalid.
-func xxxvalidateDomain(domain string) error {
+func validateDomain(domain string) error {
 	matchedDomain, remainder, err := SplitImageName(domain + "/" + imageRefWithoutDomain)
 	if err != nil {
 		return err
@@ -36,7 +36,7 @@ func xxxvalidateDomain(domain string) error {
 	return nil
 }
 
-func validateDomain(input string) error {
+func xxxvalidateDomain(input string) error {
 	matches := DomainRegexp.FindStringSubmatch(input)
 	if matches == nil {
 		return errors.New("invalid domain")

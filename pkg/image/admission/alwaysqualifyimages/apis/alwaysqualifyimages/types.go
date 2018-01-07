@@ -25,6 +25,7 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 type Configuration struct {
 	metav1.TypeMeta
 
-	// Domain to be used to qualify bare images references.
+	qualifyRulesFilename string `json:"qualifyRulesFilename"`
+
 	Domain string `json:"domain"`
 }
