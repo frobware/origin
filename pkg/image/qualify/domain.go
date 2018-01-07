@@ -20,18 +20,33 @@ import (
 	"errors"
 )
 
-const sanityRepo = "foo/bar:latest"
+const imageRefWithoutDomain = "foo/bar:latest"
 
 // validateDomain validates that input (e.g., "myregistry.io") can be
 // used as the domain component in a docker image reference. Returns
 // an error if domain would be invalid.
-func validateDomain(input string) error {
-	registry, remainder, err := SplitImageName(input + "/" + sanityRepo)
+func xxxvalidateDomain(domain string) error {
+	matchedDomain, remainder, err := SplitImageName(domain + "/" + imageRefWithoutDomain)
 	if err != nil {
 		return err
 	}
-	if registry != input && remainder != sanityRepo {
+	if domain != matchedDomain && remainder != imageRefWithoutDomain {
 		return errors.New("invalid domain")
+	}
+	return nil
+}
+
+func validateDomain(input string) error {
+	matches := DomainRegexp.FindStringSubmatch(input)
+	if matches == nil {
+		return errors.New("invalid domain")
+	}
+	domain, _, err := SplitImageName(input + "/" + imageRefWithoutDomain)
+	if err != nil {
+		return err
+	}
+	if domain != input {
+		return errors.New("invalid domain 2")
 	}
 	return nil
 }

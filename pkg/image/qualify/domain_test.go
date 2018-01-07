@@ -23,7 +23,7 @@ import (
 	"github.com/openshift/origin/pkg/image/qualify"
 )
 
-func TestValidateDomain(t *testing.T) {
+func TestDomainNameValid(t *testing.T) {
 	for i, domain := range []string{
 		"test.io",
 		"localhost",
@@ -37,7 +37,7 @@ func TestValidateDomain(t *testing.T) {
 	}
 }
 
-func TestValidateNameErrors(t *testing.T) {
+func TestDomainNameErrors(t *testing.T) {
 	for i, test := range []struct {
 		description string
 		input       string
@@ -55,7 +55,7 @@ func TestValidateNameErrors(t *testing.T) {
 		input:       strings.Repeat("x", 255) + ".io",
 	}} {
 		if err := qualify.ValidateDomain(test.input); err == nil {
-			t.Errorf("test #%v: expected an error for %q", i, test.description)
+			t.Errorf("test #%v: expected error", i)
 		}
 	}
 }
