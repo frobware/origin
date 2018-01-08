@@ -76,7 +76,6 @@ func (ms *patternSorter) Less(i, j int) bool {
 		// p == q; try the next comparison.
 	}
 
-	fmt.Println("EQ", p.Pattern, q.Pattern)
 	return ms.less[k](p.pattern, q.pattern)
 }
 
@@ -131,6 +130,7 @@ func ruleCompare(a, b Rule) bool {
 		}
 	}
 
+	panic("x")
 	return false
 }
 
@@ -195,12 +195,10 @@ func sortRules(rules []Rule) []Rule {
 		// orderBy(path, domain, tag, digest).Sort(rules)
 		// orderBy(path, domain, tag, digest).Sort(rules)
 		// orderBy(path, domain).Sort(rules)
-		// orderBy(patternSorter).Sort(wildcardRules)
-		// orderBy(patternSorter).Sort(explicitRules)
 
+		orderBy(patternSorter).Sort(wildcardRules)
+		orderBy(patternSorter).Sort(explicitRules)
 		rules = append(wildcardRules, explicitRules...)
-
-		orderBy(patternSorter).Sort(rules)
 	}
 
 	// sort.Slice(rules, func(i, j int) bool {
@@ -214,8 +212,6 @@ func sortRules(rules []Rule) []Rule {
 	// sort.Slice(wildcardRules, func(i, j int) bool {
 	// 	return ruleCompare(wildcardRules[i], wildcardRules[j])
 	// })
-
-	// rules = append(wildcardRules, explicitRules...)
 
 	for i := range rules {
 		fmt.Printf("%s\t\tdomain-%v.com\n", rules[i].Pattern, i)

@@ -48,7 +48,11 @@ func addDomain(input string) string {
 	return bb.String()
 }
 
-func TestSortXXX(t *testing.T) {
+func TestSort(t *testing.T) {
+	// Note: priority ordering is lowest..highest. And entries
+	// with a wildcard character '*' always sort lower than
+	// entries without.
+
 	var testcases = []struct {
 		description string
 		input       string
@@ -64,21 +68,21 @@ func TestSortXXX(t *testing.T) {
 	}, {
 		description: "default order is collating sequence, even for library components",
 		input:       "foo/emacs foo/vim emacs vim foo/* */* *",
-		expected:    "* */* emacs foo/* foo/emacs foo/vim vim",
+		expected:    "* */* foo/* emacs foo/emacs foo/vim vim",
 	}, {
 		description: "wild cards sort lower",
 		input:       "a*b abc */* * */*/*",
 		expected:    "* */* */*/* a*b abc",
 	}, {
 		description: "tags sort lower",
-		input:       "abc abc:latest */* *",
-		expected:    "* */* abc abc:latest",
+		input:       "abc abc:latest abc:1.0 */* *",
+		expected:    "* */* abc abc:1.0 abc:latest",
 	}, {
 		description: "digests sort lower",
 		input:       "abc abc@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff */* *",
 		expected:    "* */* abc abc@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 	}, {
-		description: "image references with library sort lower",
+		description: "image references with library components sort lower",
 		input:       "foo/emacs foo/vim emacs vim */* *",
 		expected:    "* */* emacs foo/emacs foo/vim vim",
 	}, {
@@ -88,7 +92,35 @@ func TestSortXXX(t *testing.T) {
 	}, {
 		description: "wildcard tags sort lower",
 		input:       "foo/emacs:* */vim foo/emacs emacs vim */* *",
-		expected:    "* */* */vim emacs foo/emacs foo/emacs:* vim",
+		expected:    "* */* */vim foo/emacs:* emacs foo/emacs vim",
+	}, {
+		description: "wildcard libraries",
+		input:       "*me *you * */* */* */*/*",
+		expected:    "* */* */* */*/* *me *you",
+	}, {
+		description: "library references",
+		input: `repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+                        repo/busybox:1
+                        repo/busybox:latest
+                        repo/busybox:*
+                        repo/busybox
+                        repo/busy
+                        qwerty/busybox
+                        */*busy
+                        repo/*
+                        repo/busy*
+                        busybox`,
+		expected: `*/*busy
+                           repo/*
+                           repo/busy*
+                           repo/busybox:*
+                           busybox
+                           qwerty/busybox
+                           repo/busy
+                           repo/busybox
+                           repo/busybox:1
+                           repo/busybox:latest
+                           repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff`,
 	}}
 
 	for i, tc := range testcases {
@@ -105,83 +137,83 @@ func TestSortXXX(t *testing.T) {
 		sorted := patterns(qualify.SortRules(rules))
 
 		if !reflect.DeepEqual(patterns(expected), sorted) {
-			t.Errorf("test #%v: expected %#v, got %#v", i, patterns(expected), sorted)
+			t.Errorf("test #%v: %s, expected %#v, got %#v", i, tc.description, patterns(expected), sorted)
 
 		}
 	}
 }
 
 // func TestSort(t *testing.T) {
-// 	var testcases = []struct {
-// 		input    []string
-// 		expected []string
-// 	}{{
-// 		input: []string{
-// 			"*",
-// 			"*me",
-// 			"*/*/*:latest",
-// 			"*/*/*",
-// 			"*/*:latest",
-// 			"foo*:latest",
-// 			"repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-// 			"repo/busybox:1",
-// 			"repo/busybox:latest",
-// 			"repo/busybox:*",
-// 			"repo/busybox",
-// 			"repo/busy",
-// 			"qwerty/busybox",
-// 			"*/*busy",
-// 			"repo/*",
-// 			"repo/busy*",
-// 			"busybox",
-// 			"*/*",
-// 			"busy",
-// 			"*you",
-// 		},
-// 		expected: []string{
-// 			"*",
-// 			"*/*",
-// 			"*/*/*",
-// 			"repo/*",
-// 			"*/*busy",
-// 			"*me",
-// 			"*you",
-// 			"sort.com/*/*you",
-// 			"busy",
-// 			"repo/busy",
-// 			"l/busybox:*@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-// 			"repo/busy*",
-// 			"busybox",
-// 			"qwerty/busybox",
-// 			"repo/busybox:*",
-// 			"repo/busybox",
-// 			"repo/busybox:1",
-// 			"*/*:latest",
-// 			"*/*/*:latest",
-// 			"repo/busybox:latest",
-// 			"foo*:latest",
-// 			"repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-// 		},
-// 	}}
+//	var testcases = []struct {
+//		input    []string
+//		expected []string
+//	}{{
+//		input: []string{
+//			"*",
+//			"*me",
+//			"*/*/*:latest",
+//			"*/*/*",
+//			"*/*:latest",
+//			"foo*:latest",
+//			"repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+//			"repo/busybox:1",
+//			"repo/busybox:latest",
+//			"repo/busybox:*",
+//			"repo/busybox",
+//			"repo/busy",
+//			"qwerty/busybox",
+//			"*/*busy",
+//			"repo/*",
+//			"repo/busy*",
+//			"busybox",
+//			"*/*",
+//			"busy",
+//			"*you",
+//		},
+//		expected: []string{
+//			"*",
+//			"*/*",
+//			"*/*/*",
+//			"repo/*",
+//			"*/*busy",
+//			"*me",
+//			"*you",
+//			"sort.com/*/*you",
+//			"busy",
+//			"repo/busy",
+//			"l/busybox:*@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+//			"repo/busy*",
+//			"busybox",
+//			"qwerty/busybox",
+//			"repo/busybox:*",
+//			"repo/busybox",
+//			"repo/busybox:1",
+//			"*/*:latest",
+//			"*/*/*:latest",
+//			"repo/busybox:latest",
+//			"foo*:latest",
+//			"repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+//		},
+//	}}
 
-// 	for _, tc := range testcases {
-// 		rules, err := qualify.ParseRules(inputToRule(tc.input))
-// 		if err != nil {
-// 			t.Fatalf("test #%v: unexpected error: %s", err)
-// 		}
-// 		sorted := patterns(qualify.SortRules(rules))
+//	for _, tc := range testcases {
+//		rules, err := qualify.ParseRules(inputToRule(tc.input))
+//		if err != nil {
+//			t.Fatalf("test #%v: unexpected error: %s", err)
+//		}
+//		sorted := patterns(qualify.SortRules(rules))
 
-// 		if !reflect.DeepEqual(tc.expected, sorted) {
-// 			// for i := len(sorted) - 1; i >= 0; i-- {
-// 			// 	t.Errorf("%q", sorted[i])
-// 			// }
-// 			// t.Errorf("\n\n\n")
+//		if !reflect.DeepEqual(tc.expected, sorted) {
+//			// for i := len(sorted) - 1; i >= 0; i-- {
+//			//	t.Errorf("%q", sorted[i])
+//			// }
+//			// t.Errorf("\n\n\n")
 
-// 			// for i := range sorted {
-// 			// 	t.Errorf("%q", sorted[i])
-// 			// }
-// 			// t.Errorf("test #%v: expected %#v, got %#v", i, tc.expect
-// 			//				ed, sorted)
-// 		}
-// 	}
+//			// for i := range sorted {
+//			//	t.Errorf("%q", sorted[i])
+//			// }
+//			// t.Errorf("test #%v: expected %#v, got %#v", i, tc.expect
+//			//				ed, sorted)
+//		}
+//	}
 // }
