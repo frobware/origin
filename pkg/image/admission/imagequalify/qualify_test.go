@@ -59,7 +59,7 @@ func testQualify(t *testing.T, rules []api.ImageQualifyRule, tests []testcase) {
 	for i, tc := range tests {
 		name, err := imagequalify.QualifyImage(tc.image, config.Rules)
 		if err != nil {
-			t.Fatalf("%s: test #%v: unexpected error: %s", err)
+			t.Fatalf("%s: test #%v: unexpected error: %s", testName(), i, err)
 		}
 		if tc.expected != name {
 			t.Errorf("%s: test #%v: expected %q, got %q", testName(), i, tc.expected, name)

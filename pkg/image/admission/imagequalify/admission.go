@@ -115,7 +115,7 @@ func (p *Plugin) Admit(attributes admission.Attributes) error {
 
 	if err := qualifyContainers(pod.Spec.InitContainers, p.rules, func(i int, qname string) error {
 		if pod.Spec.InitContainers[i].Image != qname {
-			glog.V(4).Infof("qualifying image %q as %q", pod.Spec.InitContainers[i], qname)
+			glog.V(4).Infof("qualifying image %q as %q", pod.Spec.InitContainers[i].Image, qname)
 			pod.Spec.InitContainers[i].Image = qname
 		}
 		return nil
@@ -125,7 +125,7 @@ func (p *Plugin) Admit(attributes admission.Attributes) error {
 
 	if err := qualifyContainers(pod.Spec.Containers, p.rules, func(i int, qname string) error {
 		if pod.Spec.Containers[i].Image != qname {
-			glog.V(4).Infof("qualifying image %q as %q", pod.Spec.Containers[i], qname)
+			glog.V(4).Infof("qualifying image %q as %q", pod.Spec.Containers[i].Image, qname)
 			pod.Spec.Containers[i].Image = qname
 		}
 		return nil
