@@ -24,7 +24,7 @@ func readConfig(rdr io.Reader) (*api.ImageQualifyConfig, error) {
 	if !ok {
 		return nil, fmt.Errorf("unexpected config object: %#v", obj)
 	}
-	glog.V(5).Infof("%s config is: %v", api.PluginName, config)
+	glog.V(5).Infof("%s config is: %#v", api.PluginName, config)
 	if errs := validation.Validate(config); len(errs) > 0 {
 		return nil, errs.ToAggregate()
 	}
