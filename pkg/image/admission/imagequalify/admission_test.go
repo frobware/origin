@@ -1,10 +1,11 @@
 package imagequalify_test
 
 import (
+	"bytes"
 	"reflect"
-	"strings"
 	"testing"
 
+	configapilatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
 	"github.com/openshift/origin/pkg/image/admission/imagequalify"
 	"github.com/openshift/origin/pkg/image/admission/imagequalify/api"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,13 +29,33 @@ type testConfig struct {
 	AdmissionObject        runtime.Object
 	Resource               string
 	Subresource            string
-	Rules                  []api.ImageQualifyRule
+	Config                 *api.ImageQualifyConfig
 }
 
 func container(image string) kapi.Container {
 	return kapi.Container{
 		Image: image,
 	}
+}
+
+func parseConfigRules(rules []api.ImageQualifyRule) (*api.ImageQualifyConfig, error) {
+	config, err := configapilatest.WriteYAML(&api.ImageQualifyConfig{
+		Rules: rules,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return imagequalify.ReadConfig(bytes.NewReader(config))
+}
+
+func mustParseRules(rules []api.ImageQualifyRule) *api.ImageQualifyConfig {
+	config, err := parseConfigRules(rules)
+	if err != nil {
+		panic(err)
+	}
+	return config
 }
 
 func newTest(c *testConfig) admissionTest {
@@ -71,7 +92,7 @@ func newTest(c *testConfig) admissionTest {
 	return admissionTest{
 		attributes: attributes,
 		config:     c,
-		handler:    imagequalify.NewPlugin(c.Rules),
+		handler:    imagequalify.NewPlugin(c.Config.Rules),
 		pod:        &pod,
 	}
 }
@@ -91,28 +112,21 @@ func assertImageNamesEqual(t *testing.T, expected, actual []kapi.Container) {
 	}
 }
 
-func mustParseConfig(s string) []api.ImageQualifyRule {
-	config, err := imagequalify.ReadConfig(strings.NewReader(s))
-	if err != nil {
-		panic(err)
-	}
-	return config.Rules
-}
-
 func TestAdmissionQualifiesUnqualifiedImages(t *testing.T) {
-	config := `
-apiVersion: v1
-kind: ImageQualifyConfig
-rules:
-- pattern: "somerepo/*"
-  domain: "somerepo.io"
-- pattern: "nginx"
-  domain: "nginx.com"
-- pattern: "*/*"
-  domain: "docker.io"
-- pattern: "*"
-  domain: "docker.io"
-`
+	rules := []api.ImageQualifyRule{{
+		Pattern: "somerepo/*",
+		Domain:  "somerepo.io",
+	}, {
+		Pattern: "nginx",
+		Domain:  "nginx.com",
+	}, {
+		Pattern: "*/*",
+		Domain:  "docker.io",
+	}, {
+		Pattern: "*",
+		Domain:  "docker.io",
+	}}
+
 	test := newTest(&testConfig{
 		InitContainers: []kapi.Container{
 			container("somerepo/busybox"),
@@ -136,7 +150,7 @@ rules:
 			container("nginx.com/nginx"),
 			container("docker.io/vim"),
 		},
-		Rules: mustParseConfig(config),
+		Config: mustParseRules(rules),
 	})
 
 	if err := test.handler.Admit(test.attributes); err != nil {
@@ -156,13 +170,10 @@ rules:
 }
 
 func TestAdmissionValidateErrors(t *testing.T) {
-	config := `
-apiVersion: v1
-kind: ImageQualifyConfig
-rules:
-- pattern: "somerepo/*"
-  domain: "somerepo.io"
-`
+	rules := []api.ImageQualifyRule{{
+		Pattern: "somerepo/*",
+		Domain:  "somerepo.io",
+	}}
 
 	test := newTest(&testConfig{
 		InitContainers: []kapi.Container{
@@ -171,7 +182,7 @@ rules:
 		ExpectedInitContainers: []kapi.Container{
 			container("somerepo.io/somerepo/busybox"),
 		},
-		Rules: mustParseConfig(config),
+		Config: mustParseRules(rules),
 	})
 
 	if err := test.handler.Admit(test.attributes); err != nil {
@@ -198,7 +209,7 @@ rules:
 		ExpectedContainers: []kapi.Container{
 			container("somerepo.io/somerepo/busybox"),
 		},
-		Rules: mustParseConfig(config),
+		Config: mustParseRules(rules),
 	})
 
 	if err := test.handler.Admit(test.attributes); err != nil {
@@ -218,15 +229,14 @@ rules:
 }
 
 func TestAdmissionErrorsOnNonPodObject(t *testing.T) {
-	config := `
-apiVersion: v1
-kind: ImageQualifyConfig
-rules:
-- pattern: "somerepo/*"
-  domain: "somerepo.io"
-- pattern: "nginx"
-  domain: "nginx.com"
-`
+	rules := []api.ImageQualifyRule{{
+		Pattern: "somerepo/*",
+		Domain:  "somerepo.io",
+	}, {
+		Pattern: "nginx",
+		Domain:  "nginx.com",
+	}}
+
 	test := newTest(&testConfig{
 		InitContainers: []kapi.Container{
 			container("somerepo/busybox"),
@@ -235,7 +245,7 @@ rules:
 			container("foo.io/busybox"),
 		},
 		AdmissionObject: &kapi.ReplicationController{},
-		Rules:           mustParseConfig(config),
+		Config:          mustParseRules(rules),
 	})
 
 	if err := test.handler.Admit(test.attributes); err == nil {
@@ -248,15 +258,14 @@ rules:
 }
 
 func TestAdmissionIsIgnoredForSubresource(t *testing.T) {
-	config := `
-apiVersion: v1
-kind: ImageQualifyConfig
-rules:
-- pattern: "somerepo/*"
-  domain: "somerepo.io"
-- pattern: "nginx"
-  domain: "nginx.com"
-`
+	rules := []api.ImageQualifyRule{{
+		Pattern: "somerepo/*",
+		Domain:  "somerepo.io",
+	}, {
+		Pattern: "nginx",
+		Domain:  "nginx.com",
+	}}
+
 	test := newTest(&testConfig{
 		InitContainers: []kapi.Container{
 			container("somerepo/busybox"),
@@ -275,7 +284,7 @@ rules:
 			container("nginx"),
 		},
 		Subresource: "subresource",
-		Rules:       mustParseConfig(config),
+		Config:      mustParseRules(rules),
 	})
 
 	// Not expecting an error for Admit() or Validate() because we
@@ -299,15 +308,14 @@ rules:
 }
 
 func TestAdmissionErrorsOnNonPodsResource(t *testing.T) {
-	config := `
-apiVersion: v1
-kind: ImageQualifyConfig
-rules:
-- pattern: "somerepo/*"
-  domain: "somerepo.io"
-- pattern: "nginx"
-  domain: "nginx.com"
-`
+	rules := []api.ImageQualifyRule{{
+		Pattern: "somerepo/*",
+		Domain:  "somerepo.io",
+	}, {
+		Pattern: "nginx",
+		Domain:  "nginx.com",
+	}}
+
 	test := newTest(&testConfig{
 		InitContainers: []kapi.Container{
 			container("somerepo/busybox"),
@@ -326,7 +334,7 @@ rules:
 			container("nginx"),
 		},
 		Resource: "nonpods",
-		Rules:    mustParseConfig(config),
+		Config:   mustParseRules(rules),
 	})
 
 	if err := test.handler.Admit(test.attributes); err != nil {
@@ -345,20 +353,19 @@ rules:
 }
 
 func TestAdmissionErrorsWhenImageNamesAreInvalid(t *testing.T) {
-	config := `
-apiVersion: v1
-kind: ImageQualifyConfig
-rules:
-- pattern: "somerepo/*"
-  domain: "somerepo.io"
-- pattern: "nginx"
-  domain: "nginx.com"
-`
+	rules := []api.ImageQualifyRule{{
+		Pattern: "somerepo/*",
+		Domain:  "somerepo.io",
+	}, {
+		Pattern: "nginx",
+		Domain:  "nginx.com",
+	}}
+
 	test := newTest(&testConfig{
 		InitContainers: []kapi.Container{
 			container("foo.io/[]!nginx"),
 		},
-		Rules: mustParseConfig(config),
+		Config: mustParseRules(rules),
 	})
 
 	if err := test.handler.Admit(test.attributes); err == nil {
@@ -375,7 +382,7 @@ rules:
 		Containers: []kapi.Container{
 			container("foo.io/[]!nginx"),
 		},
-		Rules: mustParseConfig(config),
+		Config: mustParseRules(rules),
 	})
 
 	if err := test.handler.Admit(test.attributes); err == nil {
