@@ -156,7 +156,7 @@ func (p *Plugin) Validate(attributes admission.Attributes) error {
 
 	if err := qualifyContainers(pod.Spec.InitContainers, p.rules, func(i int, qname string) error {
 		if pod.Spec.InitContainers[i].Image != qname {
-			msg := fmt.Sprintf("image %q should be qualified", pod.Spec.InitContainers[i].Image)
+			msg := fmt.Sprintf("image %q should be qualified as %q", pod.Spec.InitContainers[i].Image, qname)
 			return apierrs.NewBadRequest(msg)
 		}
 		return nil
@@ -166,7 +166,7 @@ func (p *Plugin) Validate(attributes admission.Attributes) error {
 
 	if err := qualifyContainers(pod.Spec.Containers, p.rules, func(i int, qname string) error {
 		if pod.Spec.Containers[i].Image != qname {
-			msg := fmt.Sprintf("image %q should be qualified", pod.Spec.Containers[i].Image)
+			msg := fmt.Sprintf("image %q should be qualified as %q", pod.Spec.Containers[i].Image, qname)
 			return apierrs.NewBadRequest(msg)
 		}
 		return nil
