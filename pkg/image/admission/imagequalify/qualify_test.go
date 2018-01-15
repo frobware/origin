@@ -2,8 +2,6 @@ package imagequalify_test
 
 import (
 	"bytes"
-	"regexp"
-	"runtime"
 	"testing"
 
 	configapilatest "github.com/openshift/origin/pkg/cmd/server/api/latest"
@@ -14,28 +12,6 @@ import (
 type testcase struct {
 	image    string
 	expected string
-}
-
-// Match Test<XXX> func name in a package specifier.
-//
-// For example, it will match TestFoo in:
-//   github.io/xxx/foo_test.TestFoo
-var testNameRegexp = regexp.MustCompile(`\.(Test[\p{L}_\p{N}]+)$`)
-
-func testName() string {
-	pc := make([]uintptr, 32)
-	n := runtime.Callers(0, pc)
-
-	for i := 0; i < n; i++ {
-		fn := runtime.FuncForPC(pc[i])
-		matches := testNameRegexp.FindStringSubmatch(fn.Name())
-		if matches == nil {
-			continue
-		}
-		return matches[1]
-	}
-
-	panic("test name could not be discovered; try increasing stack depth?")
 }
 
 func parseQualifyRules(rules []api.ImageQualifyRule) (*api.ImageQualifyConfig, error) {
@@ -51,18 +27,20 @@ func parseQualifyRules(rules []api.ImageQualifyRule) (*api.ImageQualifyConfig, e
 }
 
 func testQualify(t *testing.T, rules []api.ImageQualifyRule, tests []testcase) {
+	t.Helper()
+
 	config, err := parseQualifyRules(rules)
 	if err != nil {
-		t.Fatalf("test %s: failed to parse rules: %v", testName(), err)
+		t.Fatalf("failed to parse rules: %v", err)
 	}
 
 	for i, tc := range tests {
 		name, err := imagequalify.QualifyImage(tc.image, config.Rules)
 		if err != nil {
-			t.Fatalf("%s: test #%v: unexpected error: %s", testName(), i, err)
+			t.Fatalf("test #%v: unexpected error: %s", i, err)
 		}
 		if tc.expected != name {
-			t.Errorf("%s: test #%v: expected %q, got %q", testName(), i, tc.expected, name)
+			t.Errorf("test #%v: expected %q, got %q", i, tc.expected, name)
 		}
 	}
 }
