@@ -1,48 +1,88 @@
-// Package imagequalify provides functions for qualifying bare image
-// references with a domain component based on a set of pattern
-// matching rules. It also provides functions for parsing rules from
-// files. A rules files is a line-orientated set of path-based
-// patterns with an associated domain for each pattern.
+// Package imagequalify contains the OpenShift ImageQualify admission
+// control plugin. This plugin allows administrators to set a policy
+// for bare image names. A "bare" image name is a docker image
+// reference that contains no domain component (e.g., "repository.io",
+// "docker.io", etc).
 //
-// Each line is a sequence of two space-separated words; the first
-// word is the image pattern, the second is a domain name. The comment
-// character is hash (#), and comments run until the newline. Blank
-// lines are ignored.
+// The preferred domain component to use, and hence pull from, for a
+// bare image name is computed from a set of path-based pattern
+// matching rules in the admission configuration:
 //
-// Examples:
+// admissionConfig:
+//  pluginConfig:
+//    openshift.io/ImageQualify:
+//      configuration:
+//        kind: ImageQualifyConfig
+//        apiVersion: v1
+//        rules:
+//          - pattern: "openshift*/*"
+//            domain:  "access.redhat.registry.com"
 //
-//   # Simple image references
-//   busybox my-registry.com
+//          - pattern: "*"
+//            domain:  "access.redhat.registry.com"
 //
-//   # Images that reference a repository
-//   library/busybox busybox.com
+//          - pattern: "nginx"
+//            domain:  "nginx.com"
 //
-//   # Wildcards are supported using '*'
+//          - pattern: "repo/jenkins"
+//            domain:  "jenkins-ci.org"
 //
-//   # any image in the openshift repository
-//   openshift/* access.registry.redhat.com
+// The rules will be automatically sorted by the plugin based on the
+// ascending lexicographic order of their patterns. For patterns,
+// ascending means that longer paths precede shorter paths. And by the
+// nature of the collating sequence, wildcards will list after paths
+// that contain no wildcard characters.
 //
-//   */nginx     nginx.com  # nginx in any repository
-//   */*:latest  dev.com    # any repo and any image with tag 'latest'
-//   */*         foo.com    # any repo and any image
-//   *           foo.com    # any image name
+// As we use path-based pattern matching you should be aware of what
+// looks like a fallback pattern to cover any bare image reference:
 //
-//   # Patterns can also reference image SHA's.
-//   */*/*@sha256:<...SHA...> production.com
+//          - pattern: "*"
+//          - domain:  "access.redhat.registry.com"
 //
-// Rule Ordering
+// This pattern would not match "repo/jenkins" as the pattern contains
+// no path segments (i.e., '/'). To match both cases you should list
+// wildcard patterns that cover just image names and images in any
+// repository.
 //
-// Rules are automatically ordered by the pattern's path; deeper paths
-// match first and wilcards least (due to the collating sequence).
+//          - pattern: "*"
+//          - domain:  "access.redhat.registry.com"
 //
-// Given the previous example the natural sorting order is:
+//          - pattern: "*/*"
+//          - domain:  "access.redhat.registry.com"
 //
-//   openshift/*            access.registry.redhat.com
-//   library/busybox        busybox.com
-//   busybox                busybox.com
-//   */nginx                nginx.com
-//   */*:latest             dev.com
-//   */*/*@sha256:<SHA>     production.com
-//   */*                    foo.com
-//   *                      foo.com
+// Additionally, patterns can also reference tags:
+//
+//          - pattern: "nginx:latest"
+//            domain:  "nginx-dev.com"
+//
+//          - pattern: "nginx:*"
+//            domain:  "nginx-prod.com"
+//
+//          - pattern: "nginx:v1.2.*"
+//            domain:  "nginx-prod.com"
+//
+//          - pattern: "next/nginx:v2*"
+//            domain:  "next/nginx-next.com"
+//
+// Additionally, patterns can also reference digests:
+//
+//          - pattern: "nginx@sha256:abc*"
+//            domain:  "nginx-staging.com"
+//
+//          - pattern: "reppo/nginx:latest@sha256:abc*"
+//            domain:  "nginx-staging.com"
+//
+// The plugin is configured via the ImageQualifyConfig object in the
+// origin and kubernetes master configs:
+//
+// kubernetesMasterConfig:
+//   admissionConfig:
+//     pluginConfig:
+//       openshift.io/ImageQualify:
+//         configuration:
+//           kind: ImageQualifyConfig
+//           apiVersion: v1
+//           rules:
+//             - pattern: nginx
+//               domain: localhost:5000
 package imagequalify
