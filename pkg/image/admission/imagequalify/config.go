@@ -11,7 +11,7 @@ import (
 	"github.com/openshift/origin/pkg/image/admission/imagequalify/api/validation"
 )
 
-func filter(rules []api.ImageQualifyRule, test func(rule *api.ImageQualifyRule) bool) []api.ImageQualifyRule {
+func filterRules(rules []api.ImageQualifyRule, test func(rule *api.ImageQualifyRule) bool) []api.ImageQualifyRule {
 	filtered := make([]api.ImageQualifyRule, 0, len(rules))
 
 	for i := range rules {
@@ -40,11 +40,11 @@ func sortRulesByPattern(rules []api.ImageQualifyRule) {
 		return x.Depth > y.Depth
 	}
 
-	explicitRules := filter(rules, func(rule *api.ImageQualifyRule) bool {
+	explicitRules := filterRules(rules, func(rule *api.ImageQualifyRule) bool {
 		return !strings.Contains(rule.Pattern, "*")
 	})
 
-	wildcardRules := filter(rules, func(rule *api.ImageQualifyRule) bool {
+	wildcardRules := filterRules(rules, func(rule *api.ImageQualifyRule) bool {
 		return strings.Contains(rule.Pattern, "*")
 	})
 
