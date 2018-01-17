@@ -143,20 +143,19 @@ func TestSort(t *testing.T) {
 		})
 
 		fmt.Printf("-- test %#v: %s\n", i, tc.description)
-		fmt.Println("drop table if exists explicit;\ncreate table explicit(path text, tag text, digest text, depth number);\n")
-		fmt.Println("drop table if exists wildcard;\ncreate table wildcard(path text, tag text, digest text, depth number);\n")
+		fmt.Println("drop table if exists explicit;\ncreate table explicit(tc text, pattern text, path text, tag text, digest text, depth number);\n")
+		fmt.Println("drop table if exists wildcard;\ncreate table wildcard(tc text, pattern text, path text, tag text, digest text, depth number);\n")
 
 		for j := range explicitRules {
 			parts := imagequalify.DestructurePattern(explicitRules[j].Pattern)
-			fmt.Printf("insert into explicit values(%q, %q, %q, %v);\n", parts.Path, parts.Tag, parts.Digest, parts.Depth)
+			fmt.Printf("insert into explicit values(%q, %q, %q, %q, %q, %v);\n", tc.input, parts.Pattern, parts.Path, parts.Tag, parts.Digest, parts.Depth)
 		}
-		fmt.Printf("select path, tag, digest from explicit order by digest DESC, tag DESC, depth DESC, path DESC;\n\n")
-
 		for j := range wildcardRules {
 			parts := imagequalify.DestructurePattern(wildcardRules[j].Pattern)
-			fmt.Printf("insert into wildcard values(%q, %q, %q, %v);\n", parts.Path, parts.Tag, parts.Digest, parts.Depth)
+			fmt.Printf("insert into wildcard values(%q, %q, %q, %q, %q, %v);\n", tc.input, parts.Pattern, parts.Path, parts.Tag, parts.Digest, parts.Depth)
 		}
-		fmt.Printf("select path, tag, digest from explicit order by digest DESC, tag DESC, depth DESC, path DESC;\n\n")
+		fmt.Printf("select group_concat(explicit.pattern, %q) from explicit order by explicit.digest DESC, explicit.tag DESC, explicit.depth DESC, explicit.path DESC;\n\n", " ")
+		fmt.Printf("select group_concat(wildcard.pattern, %q) from wildcard order by wildcard.digest DESC, wildcard.tag DESC, wildcard.depth DESC, wildcard.path DESC;\n\n", " ")
 	}
 
 	for i, tc := range testcases {

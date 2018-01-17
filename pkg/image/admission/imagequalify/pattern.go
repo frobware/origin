@@ -5,21 +5,23 @@ import (
 )
 
 type PatternParts struct {
-	Depth  int
-	Digest string
-	Path   string
-	Tag    string
+	Depth   int
+	Digest  string
+	Path    string
+	Tag     string
+	Pattern string
 }
 
-func destructurePattern(s string) PatternParts {
+func destructurePattern(pattern string) PatternParts {
 	parts := PatternParts{
-		Path:  s,
-		Depth: strings.Count(s, "/"),
+		Path:    pattern,
+		Pattern: pattern,
+		Depth:   strings.Count(pattern, "/"),
 	}
 
-	if i := strings.IndexRune(s, '@'); i != -1 {
-		parts.Path = s[:i]
-		parts.Digest = s[i+1:]
+	if i := strings.IndexRune(pattern, '@'); i != -1 {
+		parts.Path = pattern[:i]
+		parts.Digest = pattern[i+1:]
 	}
 
 	if i := strings.IndexRune(parts.Path, ':'); i != -1 {
