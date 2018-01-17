@@ -5,13 +5,17 @@ import (
 )
 
 type PatternParts struct {
+	Depth  int
+	Digest string
 	Path   string
 	Tag    string
-	Digest string
 }
 
 func destructurePattern(s string) PatternParts {
-	parts := PatternParts{Path: s}
+	parts := PatternParts{
+		Path:  s,
+		Depth: strings.Count(s, "/"),
+	}
 
 	if i := strings.IndexRune(s, '@'); i != -1 {
 		parts.Path = s[:i]
@@ -20,9 +24,6 @@ func destructurePattern(s string) PatternParts {
 
 	if i := strings.IndexRune(parts.Path, ':'); i != -1 {
 		parts.Path, parts.Tag = parts.Path[:i], parts.Path[i+1:]
-		if i := strings.IndexRune(parts.Tag, '@'); i != -1 {
-			parts.Tag = parts.Tag[:i]
-		}
 	}
 
 	return parts

@@ -19,7 +19,8 @@ func TestPatternParse(t *testing.T) {
 	}, {
 		pattern: "a/b",
 		expected: imagequalify.PatternParts{
-			Path: "a/b",
+			Depth: 1,
+			Path:  "a/b",
 		},
 	}, {
 		pattern: "a:latest",
@@ -30,22 +31,29 @@ func TestPatternParse(t *testing.T) {
 	}, {
 		pattern: "a@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 		expected: imagequalify.PatternParts{
-			Path:   "a",
 			Digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			Path:   "a",
 		},
 	}, {
 		pattern: "a:latest@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 		expected: imagequalify.PatternParts{
+			Digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 			Path:   "a",
 			Tag:    "latest",
-			Digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 		},
 	}, {
 		pattern: "repo/a:latest@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 		expected: imagequalify.PatternParts{
+			Depth:  1,
+			Digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
 			Path:   "repo/a",
 			Tag:    "latest",
-			Digest: "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+		},
+	}, {
+		pattern: "repo/a/b/c/d",
+		expected: imagequalify.PatternParts{
+			Depth: 4,
+			Path:  "repo/a/b/c/d",
 		},
 	}}
 

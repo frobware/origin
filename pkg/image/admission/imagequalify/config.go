@@ -3,7 +3,6 @@ package imagequalify
 import (
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 
 	"github.com/golang/glog"
@@ -24,7 +23,7 @@ func filter(rules []api.ImageQualifyRule, test func(rule *api.ImageQualifyRule) 
 	return filtered
 }
 
-func sortRulesByPatterns(rules []api.ImageQualifyRule) {
+func sortRulesByPattern(rules []api.ImageQualifyRule) {
 	digest := func(x, y *PatternParts) bool {
 		return string(x.Digest) > string(y.Digest)
 	}
@@ -38,7 +37,7 @@ func sortRulesByPatterns(rules []api.ImageQualifyRule) {
 	}
 
 	depth := func(x, y *PatternParts) bool {
-		return strings.Count(x.Path, "/") > strings.Count(y.Path, "/")
+		return x.Depth > y.Depth
 	}
 
 	explicitRules := filter(rules, func(rule *api.ImageQualifyRule) bool {
@@ -57,20 +56,15 @@ func sortRulesByPatterns(rules []api.ImageQualifyRule) {
 	// 	fmt.Println("W:", wildcardRules[i])
 	// }
 
-	sort.Stable(ByPatternDepth(rules))
-	sort.Stable(ByPatternPathAscending(rules))
-	sort.Stable(ByPatternTagAscending(rules))
-	sort.Stable(ByPatternDigestAscending(rules))
+	// sort.Stable(ByPatternDepth(rules))
+	// sort.Stable(ByPatternPathAscending(rules))
+	// sort.Stable(ByPatternTagAscending(rules))
+	// sort.Stable(ByPatternDigestAscending(rules))
 
-	orderBy(depth, path, tag, digest).Sort(wildcardRules)
-	// orderBy(tag).Stable(wildcardRules)
-	// orderBy(digest).Stable(wildcardRules)
-	// orderBy(depth).Stable(wildcardRules)
+	depth = depth
 
-	orderBy(depth, path, tag, digest).Sort(explicitRules)
-	// orderBy(digest).Stable(explicitRules)
-	// orderBy(tag).Stable(explicitRules)
-	// orderBy(depth).Stable(explicitRules)
+	orderBy(digest, tag, depth, path).Stable(explicitRules)
+	orderBy(digest, tag, depth, path).Stable(wildcardRules)
 
 	for i := range explicitRules {
 		rules[i] = explicitRules[i]
@@ -99,7 +93,7 @@ func readConfig(rdr io.Reader) (*api.ImageQualifyConfig, error) {
 		return nil, errs.ToAggregate()
 	}
 	if len(config.Rules) > 0 {
-		sortRulesByPatterns(config.Rules)
+		sortRulesByPattern(config.Rules)
 	}
 	return config, nil
 }
