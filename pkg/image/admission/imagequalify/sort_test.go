@@ -12,14 +12,15 @@ import (
 	"github.com/openshift/origin/pkg/image/admission/imagequalify/api"
 )
 
-func patterns(rules []api.ImageQualifyRule) []string {
-	names := make([]string, len(rules))
+func patternsFromRules(rules []api.ImageQualifyRule) string {
+	var bb bytes.Buffer
 
 	for i := range rules {
-		names[i] = rules[i].Pattern
+		bb.WriteString(rules[i].Pattern)
+		bb.WriteString(" ")
 	}
 
-	return names
+	return strings.TrimSpace(bb.String())
 }
 
 func normaliseInput(input string) string {
@@ -35,7 +36,7 @@ func normaliseInput(input string) string {
 	return bb.String()
 }
 
-func patterns2config(input string) (*api.ImageQualifyConfig, error) {
+func parseTestSortPatterns(input string) (*api.ImageQualifyConfig, error) {
 	rules := []api.ImageQualifyRule{}
 
 	for i, word := range strings.Fields(normaliseInput(input)) {
@@ -62,13 +63,29 @@ func TestSort(t *testing.T) {
 		input       string
 		expected    string
 	}{{
-		description: "default order is ascending order",
+		description: "default order is lexicographical (ascending)",
 		input:       "a b c",
 		expected:    "c b a",
 	}, {
+		description: "longer patterns sort first",
+		input:       "a b/c c/d b/c/d/e b/c/d/f b/c/d/f/f b/c/d",
+		expected:    "b/c/d/f/f b/c/d/f b/c/d/e b/c/d c/d b/c a",
+	}, {
+		description: "longer patterns sort first",
+		input:       "* */c c/*",
+		expected:    "c/* */c *",
+	}, {
 		description: "wildcards sort last",
-		input:       "a* a",
-		expected:    "a a*",
+		input:       "a* *m *ma *a y m a a*m*",
+		expected:    "y m a a*m* a* *ma *m *a",
+	}, {
+		description: "longer paths sort before shorter",
+		input:       "a a/b a/b/c",
+		expected:    "a/b/c a/b a",
+	}, {
+		description: "tags with longer paths sort before shorter",
+		input:       "a a/b a/b/c x:latest x/y:latest x/y/z:latest",
+		expected:    "x/y/z:latest x/y:latest x:latest a/b/c a/b a",
 	}, {
 		description: "explicit patterns, followed by wildcard patterns",
 		input:       "busybox:* busybox:v1.2.3* a busybox:v1.2* b busybox busybox:v1* c nginx",
@@ -78,31 +95,33 @@ func TestSort(t *testing.T) {
 		input:       "* */* */*/*",
 		expected:    "*/*/* */* *",
 	}, {
-		description: "explicit followed by wildcards",
-		input:       "* */* */*/* a/a b/a c/a c b a",
-		expected:    "c/a c b/a b a/a a */*/* */* *",
+		description: "explicit patterns come before all wildcard patterns",
+		input:       "* */* */*/* *a/a b/*a *c*/*a* c b a a/a b/a c/a",
+		expected:    "c/a b/a a/a c b a */*/* b/*a *c*/*a* *a/a */* *",
 	}, {
 		description: "patterns with tags sort in ascending order",
 		input:       "abc:* abc * a b c abc:latest b*:* abc:1.0 */*",
-		expected:    "c b abc:latest abc:1.0 abc a b*:* abc:* */* *",
+		expected:    "abc:latest abc:1.0 c b abc a */* b*:* abc:* *",
 	}, {
-		description: "patterns with digest sort in ascending order",
+		description: "patterns with digests sort in ascending order",
 		input:       "abc */* * abc@sha256:ee */abc@sha256:ff */@*",
 		expected:    "abc@sha256:ee abc */abc@sha256:ff */@* */* *",
 	}, {
 		description: "wildcard repositories sort first",
-		input:       "*me *you * */* */* */*/*",
-		expected:    "*you *me */*/* */* */* *",
+		input:       "y *m m *my",
+		expected:    "y m *my *m",
 	}}
 
 	for i, tc := range testcases {
-		config, err := patterns2config(tc.input)
+		config, err := parseTestSortPatterns(tc.input)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		expected := strings.Fields(normaliseInput(tc.expected))
-		if !reflect.DeepEqual(expected, patterns(config.Rules)) {
-			t.Errorf("test #%v: %s: expected %v, got %v", i, tc.description, tc.expected, patterns(config.Rules))
+
+		actualPatterns := patternsFromRules(config.Rules)
+
+		if !reflect.DeepEqual(tc.expected, actualPatterns) {
+			t.Errorf("test #%v: %s: expected [%s], got [%s]", i, tc.description, tc.expected, actualPatterns)
 		}
 	}
 }

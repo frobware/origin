@@ -293,3 +293,20 @@ func TestQualifyImagesAlreadyQualified(t *testing.T) {
 
 	testQualify(t, rules, tests)
 }
+
+func TestQualifyImagesWTF(t *testing.T) {
+	rules := []api.ImageQualifyRule{{
+		Pattern: "*m",
+		Domain:  "m.com",
+	}, {
+		Pattern: "*my",
+		Domain:  "y.com",
+	}}
+
+	tests := []testcase{{
+		image:    "my",
+		expected: "y.com/my",
+	}}
+
+	testQualify(t, rules, tests)
+}

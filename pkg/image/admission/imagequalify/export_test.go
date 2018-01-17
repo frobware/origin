@@ -1,6 +1,7 @@
 package imagequalify
 
 var (
-	ReadConfig   = readConfig
-	QualifyImage = qualifyImage
+	ReadConfig         = readConfig
+	DestructurePattern = destructurePattern
+	QualifyImage       = qualifyImage
 )
