@@ -62,71 +62,37 @@ func TestSort(t *testing.T) {
 		input       string
 		expected    string
 	}{{
-		description: "default order is collating sequence",
+		description: "default order is ascending order",
 		input:       "a b c",
 		expected:    "c b a",
 	}, {
-		description: "wildcards have less priority",
-		input:       "busybox:* busybox busybox:v1*",
-		expected:    "busybox:v1* busybox:* busybox",
+		description: "wildcards sort last",
+		input:       "a* a",
+		expected:    "a a*",
 	}, {
-		description: "wildcard default order is collating sequence",
-		input:       "*/*/* * */*/*:latest */*/*@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff */*",
-		expected:    "*/*/*@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff */*/*:latest */*/* */* *",
+		description: "explicit patterns, followed by wildcard patterns",
+		input:       "busybox:* busybox:v1.2.3* a busybox:v1.2* b busybox busybox:v1* c nginx",
+		expected:    "nginx c busybox b a busybox:v1.2.3* busybox:v1.2* busybox:v1* busybox:*",
 	}, {
-		description: "default order is collating sequence, even for library components",
-		input:       "foo/emacs foo/vim */* * emacs vim foo/*",
-		expected:    "vim foo/vim foo/emacs foo/* emacs */* *",
+		description: "wildcards only",
+		input:       "* */* */*/*",
+		expected:    "*/*/* */* *",
 	}, {
-		description: "wild cards sort lower",
-		input:       " */*/* */* a*b * abc",
-		expected:    "abc a*b */*/* */* *",
+		description: "explicit followed by wildcards",
+		input:       "* */* */*/* a/a b/a c/a c b a",
+		expected:    "c/a c b/a b a/a a */*/* */* *",
 	}, {
-		description: "tags sort lower",
-		input:       "abc * abc:latest abc:1.0 */*",
-		expected:    "abc:latest abc:1.0 abc */* *",
+		description: "patterns with tags sort in ascending order",
+		input:       "abc:* abc * a b c abc:latest b*:* abc:1.0 */*",
+		expected:    "c b abc:latest abc:1.0 abc a b*:* abc:* */* *",
 	}, {
-		description: "digests sort higher",
-		input:       "abc */* abc@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff *",
-		expected:    "abc@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff abc */* *",
+		description: "patterns with digest sort in ascending order",
+		input:       "abc */* * abc@sha256:ee */abc@sha256:ff */@*",
+		expected:    "abc@sha256:ee abc */abc@sha256:ff */@* */* *",
 	}, {
-		description: "wildcard library references sort lower",
-		input:       "foo/emacs */* * */vim emacs vim",
-		expected:    "vim foo/emacs emacs */vim */* *",
-	}, {
-		description: "wildcard tags sort lower",
-		input:       "* foo/emacs:* */vim */* foo/emacs emacs vim",
-		expected:    "vim foo/emacs:* foo/emacs emacs */vim */* *",
-	}, {
-		description: "wildcard libraries",
+		description: "wildcard repositories sort first",
 		input:       "*me *you * */* */* */*/*",
 		expected:    "*you *me */*/* */* */* *",
-	}, {
-		description: "library references",
-		input: `
-repo/busybox:latest
-repo/busybox:1
-repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-repo/busybox:*
-repo/busybox
-repo/busy
-qwerty/busybox
-*/*busy
-repo/*
-repo/busy*
-busybox`,
-		expected: `
-repo/busybox@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-repo/busybox:latest
-repo/busybox:1
-repo/busybox:*
-repo/busybox
-repo/busy*
-repo/busy
-repo/*
-qwerty/busybox
-busybox
-*/*busy`,
 	}}
 
 	for i, tc := range testcases {
@@ -136,7 +102,7 @@ busybox
 		}
 		expected := strings.Fields(normaliseInput(tc.expected))
 		if !reflect.DeepEqual(expected, patterns(config.Rules)) {
-			t.Errorf("test #%v: %s: expected %v, got %v", i, tc.description, expected, patterns(config.Rules))
+			t.Errorf("test #%v: %s: expected %v, got %v", i, tc.description, tc.expected, patterns(config.Rules))
 		}
 	}
 }
