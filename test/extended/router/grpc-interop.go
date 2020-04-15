@@ -2,16 +2,23 @@ package router
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"log"
+	"net"
 	"sort"
 	"strings"
 	"time"
 
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	routev1 "github.com/openshift/api/route/v1"
 	routeclientset "github.com/openshift/client-go/route/clientset/versioned"
+	grpc_interop "github.com/openshift/origin/test/extended/router/grpc-interop"
 	exutil "github.com/openshift/origin/test/extended/util"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -72,10 +79,6 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				return cmd
 			}
 
-			flakyTestCases := []string{
-				"empty_stream",
-			}
-
 			// run gRPC interop tests against the internal service host:port
 			for _, tc := range []struct {
 				port     int
@@ -90,7 +93,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				useTLS: true,
 				caCert: "/etc/service-ca/service-ca.crt",
 			}} {
-				for _, testCaseName := range sets.NewString(testCaseNames...).Delete(flakyTestCases...).List() {
+				for _, testCaseName := range sets.NewString(testCaseNames...).List() {
 					o.Expect(strings.TrimSpace(testCaseName)).ShouldNot(o.BeEmpty())
 					svc := fmt.Sprintf("grpc-interop.%s.svc", ns)
 					cmd := makeClientCmd(svc, tc.port, tc.useTLS, tc.caCert, tc.insecure) + " " + testCaseName
@@ -100,29 +103,19 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				}
 			}
 
+			flakyTestCases := []string{
+				"empty_stream",
+			}
+
 			// run gRPC interop tests via external routes
 			for _, tc := range []struct {
 				routeType routev1.TLSTerminationType
-				host      string
-				port      int
-				useTLS    bool
-				caCert    string
-				insecure  bool
 			}{{
 				routeType: routev1.TLSTerminationEdge,
-				port:      443,
-				useTLS:    true,
-				insecure:  true,
 			}, {
 				routeType: routev1.TLSTerminationPassthrough,
-				port:      443,
-				useTLS:    true,
-				insecure:  true,
 			}, {
 				routeType: routev1.TLSTerminationReencrypt,
-				port:      443,
-				useTLS:    true,
-				insecure:  true,
 			}} {
 				if tc.routeType == routev1.TLSTerminationEdge {
 					e2e.Logf("Skipping %q tests; waiting for https://github.com/openshift/router/pull/104", tc.routeType)
@@ -131,11 +124,24 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				for _, testCaseName := range sets.NewString(testCaseNames...).Delete(flakyTestCases...).List() {
 					o.Expect(strings.TrimSpace(testCaseName)).ShouldNot(o.BeEmpty())
 					host := getHostnameForRoute(oc, fmt.Sprintf("grpc-interop-%s", tc.routeType))
-					cmd := makeClientCmd(host, tc.port, tc.useTLS, tc.caCert, tc.insecure) + " " + testCaseName
-					e2e.Logf("Running gRPC interop test: %s", cmd)
-					_, err := runInteropClientCmd(ns, gRPCInteropTestTimeout, cmd)
+					conn, err := grpcClientConn(clientConfig{
+						certData: nil,
+						host:     host,
+						port:     443,
+						useTLS:   false,
+					})
 					o.Expect(err).NotTo(o.HaveOccurred())
+					grpc_interop.RunTests(conn, []string{testCaseName})
 				}
+
+				// for _, testCaseName := range sets.NewString(testCaseNames...).Delete(flakyTestCases...).List() {
+				// 	o.Expect(strings.TrimSpace(testCaseName)).ShouldNot(o.BeEmpty())
+				// 	host := getHostnameForRoute(oc, fmt.Sprintf("grpc-interop-%s", tc.routeType))
+				// 	cmd := makeClientCmd(host, tc.port, tc.useTLS, tc.caCert, tc.insecure) + " " + testCaseName
+				// 	e2e.Logf("Running gRPC interop test: %s", cmd)
+				// 	_, err := runInteropClientCmd(ns, gRPCInteropTestTimeout, cmd)
+				// 	o.Expect(err).NotTo(o.HaveOccurred())
+				// }
 			}
 		})
 	})
@@ -145,4 +151,38 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 // "client-shell" container in the "grpc-interop" POD.
 func runInteropClientCmd(ns string, timeout time.Duration, cmd string) (string, error) {
 	return e2e.RunKubectl(ns, "exec", fmt.Sprintf("--namespace=%v", ns), "grpc-interop", "-c", "client-shell", "--", "/bin/sh", "-x", "-c", fmt.Sprintf("timeout %v %s", timeout.Seconds(), cmd))
+}
+
+type clientConfig struct {
+	useTLS   bool
+	certData []byte
+	host     string
+	port     int
+}
+
+func grpcClientConn(cfg clientConfig) (*grpc.ClientConn, error) {
+	var opts []grpc.DialOption
+
+	if cfg.useTLS {
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: *insecure,
+		}
+		if len(cfg.certData) > 0 {
+			rootCAs, _ := x509.SystemCertPool()
+			if rootCAs == nil {
+				rootCAs = x509.NewCertPool()
+			}
+
+			if ok := rootCAs.AppendCertsFromPEM(cfg.certData); !ok {
+				log.Printf("No certs appended, using system certs only")
+			}
+
+			tlsConfig.RootCAs = rootCAs
+		}
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	} else {
+		opts = append(opts, grpc.WithInsecure())
+	}
+
+	return grpc.Dial(net.JoinHostPort(*host, *port), append(opts, grpc.WithBlock())...)
 }

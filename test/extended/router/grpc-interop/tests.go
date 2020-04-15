@@ -2,44 +2,61 @@ package grpc_interop
 
 import (
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/interop"
 	testpb "google.golang.org/grpc/interop/grpc_testing"
 )
 
-type testFn func(tc testpb.TestServiceClient, args ...grpc.CallOption)
-
-var defaultTestCases = map[string]testFn{
-	"cancel_after_begin":          interop.DoCancelAfterBegin,
-	"cancel_after_first_response": interop.DoCancelAfterFirstResponse,
-	"client_streaming":            interop.DoClientStreaming,
-	"custom_metadata":             interop.DoCustomMetadata,
-	"empty_stream":                interop.DoEmptyStream,
-	"empty_unary":                 interop.DoEmptyUnaryCall,
-	"large_unary":                 interop.DoLargeUnaryCall,
-	"ping_pong":                   interop.DoPingPong,
-	"server_streaming":            interop.DoServerStreaming,
-	"special_status_message":      interop.DoSpecialStatusMessage,
-	"status_code_and_message":     interop.DoStatusCodeAndMessage,
-	"timeout_on_sleeping_server":  interop.DoTimeoutOnSleepingServer,
-	"unimplemented_method":        nil, // special case
-	"unimplemented_service":       nil, // special case
+var defaultTestCases = []string{
+	"cancel_after_begin",
+	"cancel_after_first_response",
+	"client_streaming",
+	"custom_metadata",
+	"empty_stream",
+	"empty_unary",
+	"large_unary",
+	"ping_pong",
+	"server_streaming",
+	"special_status_message",
+	"status_code_and_message",
+	"timeout_on_sleeping_server",
+	"unimplemented_method",
+	"unimplemented_service",
 }
 
-func runInteropTest(tc testpb.TestServiceClient, conn *grpc.ClientConn, testNames []string) {
-	for i, name := range testNames {
-		if fn, ok := defaultTestCases[name]; ok && fn != nil {
-			fn(tc)
-		} else if ok && fn == nil {
-			switch name {
-			case "unimplemented_method":
-				interop.DoUnimplementedMethod(conn)
-			case "unimplemented_service":
-				interop.DoUnimplementedService(testpb.NewUnimplementedServiceClient(conn))
-			}
-		} else {
-			grpclog.Fatal("Unsupported test case: ", name)
-		}
-		grpclog.Infof("[#%v/%v] Test %q DONE\n", i+1, len(testNames), name)
+func TestNames() []string {
+	return defaultTestCases
+}
+
+func RunTest(conn *grpc.ClientConn, testName string) error {
+	switch testName {
+	case "cancel_after_begin":
+		return DoCancelAfterBegin(conn)
+	case "cancel_after_first_response":
+		return DoCancelAfterFirstResponse(conn)
+	case "client_streaming":
+		return DoClientStreaming(conn)
+	case "custom_metadata":
+		return DoCustomMetadata(conn)
+	case "empty_stream":
+		return DoEmptyStream(conn)
+	case "empty_unary":
+		return DoEmptyUnaryCall(conn)
+	case "large_unary":
+		return DoLargeUnaryCall(conn)
+	case "ping_pong":
+		return DoPingPong(conn)
+	case "server_streaming":
+		return DoServerStreaming(conn)
+	case "special_status_message":
+		return DoSpecialStatusMessage(conn)
+	case "status_code_and_message":
+		return DoStatusCodeAndMessage(conn)
+	case "timeout_on_sleeping_server":
+		return DoTimeoutOnSleepingServer(conn)
+	case "unimplemented_method":
+		return DoUnimplementedMethod(conn)
+	case "unimplemented_service":
+		return DoUnimplementedService(testpb.NewTestServiceClient(conn))
+	default:
+		return new.Error("unknown test name")
 	}
 }
