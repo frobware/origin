@@ -31,7 +31,7 @@ func TestNames() []string {
 func RunTests(conn *grpc.ClientConn, testNames []string) error {
 	for _, name := range testNames {
 		if err := RunTest(conn, name); err != nil {
-			return err
+			return fmt.Errorf("test %q failed: %v", name, err)
 		}
 	}
 	return nil

@@ -117,20 +117,34 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 					e2e.Logf("Skipping %q tests; waiting for https://github.com/openshift/router/pull/104", route)
 					continue
 				}
-				for _, testCaseName := range sets.NewString(testCaseNames...).Delete(flakyTestCases...).List() {
-					o.Expect(strings.TrimSpace(testCaseName)).ShouldNot(o.BeEmpty())
-					clientCfg := grpcClientConnConfig{
-						host:     getHostnameForRoute(oc, fmt.Sprintf("grpc-interop-%s", route)),
-						port:     443,
-						useTLS:   true,
-						insecure: true,
-					}
-					conn, err := grpcDial(clientCfg)
-					o.Expect(err).NotTo(o.HaveOccurred())
-					e2e.Logf("running gRPC interop test %q against route %q:%v", testCaseName, clientCfg.host, clientCfg.port)
-					grpc_interop.RunTest(conn, testCaseName)
-					conn.Close()
+				testCases := sets.NewString(testCaseNames...).Delete(flakyTestCases...).List()
+
+				clientCfg := grpcClientConnConfig{
+					host:     getHostnameForRoute(oc, fmt.Sprintf("grpc-interop-%s", route)),
+					port:     443,
+					useTLS:   true,
+					insecure: true,
 				}
+				conn, err := grpcDial(clientCfg)
+				o.Expect(err).NotTo(o.HaveOccurred())
+				e2e.Logf("running gRPC interop tests %+v against route %q:%v", testCases, clientCfg.host, clientCfg.port)
+				grpc_interop.RunTests(conn, testCases)
+				conn.Close()
+
+				// for _, testCaseName := range sets.NewString(testCaseNames...).Delete(flakyTestCases...).List() {
+				// 	o.Expect(strings.TrimSpace(testCaseName)).ShouldNot(o.BeEmpty())
+				// 	clientCfg := grpcClientConnConfig{
+				// 		host:     getHostnameForRoute(oc, fmt.Sprintf("grpc-interop-%s", route)),
+				// 		port:     443,
+				// 		useTLS:   true,
+				// 		insecure: true,
+				// 	}
+				// 	conn, err := grpcDial(clientCfg)
+				// 	o.Expect(err).NotTo(o.HaveOccurred())
+				// 	e2e.Logf("running gRPC interop test %q against route %q:%v", testCaseName, clientCfg.host, clientCfg.port)
+				// 	grpc_interop.RunTest(conn, testCaseName)
+				// 	conn.Close()
+				// }
 
 				// for _, testCaseName := range sets.NewString(testCaseNames...).Delete(flakyTestCases...).List() {
 				// 	o.Expect(strings.TrimSpace(testCaseName)).ShouldNot(o.BeEmpty())
