@@ -1,6 +1,8 @@
 package grpc_interop
 
 import (
+	"fmt"
+
 	"google.golang.org/grpc"
 	testpb "google.golang.org/grpc/interop/grpc_testing"
 )
@@ -26,37 +28,48 @@ func TestNames() []string {
 	return defaultTestCases
 }
 
+func RunTests(conn *grpc.ClientConn, testNames []string) error {
+	for _, name := range testNames {
+		if err := RunTest(conn, name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func RunTest(conn *grpc.ClientConn, testName string) error {
+	tc := testpb.NewTestServiceClient(conn)
+
 	switch testName {
 	case "cancel_after_begin":
-		return DoCancelAfterBegin(conn)
+		return DoCancelAfterBegin(tc)
 	case "cancel_after_first_response":
-		return DoCancelAfterFirstResponse(conn)
+		return DoCancelAfterFirstResponse(tc)
 	case "client_streaming":
-		return DoClientStreaming(conn)
+		return DoClientStreaming(tc)
 	case "custom_metadata":
-		return DoCustomMetadata(conn)
+		return DoCustomMetadata(tc)
 	case "empty_stream":
-		return DoEmptyStream(conn)
+		return DoEmptyStream(tc)
 	case "empty_unary":
-		return DoEmptyUnaryCall(conn)
+		return DoEmptyUnaryCall(tc)
 	case "large_unary":
-		return DoLargeUnaryCall(conn)
+		return DoLargeUnaryCall(tc)
 	case "ping_pong":
-		return DoPingPong(conn)
+		return DoPingPong(tc)
 	case "server_streaming":
-		return DoServerStreaming(conn)
+		return DoServerStreaming(tc)
 	case "special_status_message":
-		return DoSpecialStatusMessage(conn)
+		return DoSpecialStatusMessage(tc)
 	case "status_code_and_message":
-		return DoStatusCodeAndMessage(conn)
+		return DoStatusCodeAndMessage(tc)
 	case "timeout_on_sleeping_server":
-		return DoTimeoutOnSleepingServer(conn)
+		return DoTimeoutOnSleepingServer(tc)
 	case "unimplemented_method":
 		return DoUnimplementedMethod(conn)
 	case "unimplemented_service":
-		return DoUnimplementedService(testpb.NewTestServiceClient(conn))
+		return DoUnimplementedService(testpb.NewUnimplementedServiceClient(conn))
 	default:
-		return new.Error("unknown test name")
+		return fmt.Errorf("unknown test name")
 	}
 }
