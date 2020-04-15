@@ -101,10 +101,6 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				routev1.TLSTerminationPassthrough,
 				routev1.TLSTerminationReencrypt,
 			} {
-				if route == routev1.TLSTerminationEdge {
-					e2e.Logf("Skipping %q tests; waiting for https://github.com/openshift/router/pull/104", route)
-					continue
-				}
 				testCases := grpc_interop.SortedTestNames()
 				clientCfg := grpcClientConnConfig{
 					host:     getHostnameForRoute(oc, fmt.Sprintf("grpc-interop-%s", route)),
