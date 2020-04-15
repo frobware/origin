@@ -2,6 +2,7 @@ package grpc_interop
 
 import (
 	"fmt"
+	"sort"
 
 	"google.golang.org/grpc"
 	testpb "google.golang.org/grpc/interop/grpc_testing"
@@ -24,8 +25,10 @@ var defaultTestCases = []string{
 	"unimplemented_service",
 }
 
-func TestNames() []string {
-	return defaultTestCases
+func SortedTestNames() []string {
+	copied := make([]string, len(defaultTestCases))
+	copy(copied, defaultTestCases)
+	return sort.StringSlice(copied)
 }
 
 func RunTests(conn *grpc.ClientConn, testNames []string) error {
