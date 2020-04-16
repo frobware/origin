@@ -1,0 +1,261 @@
+apiVersion: v1
+kind: Template
+objects:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: grpc-interop
+    annotations:
+      service.beta.openshift.io/serving-cert-secret-name: service-certs
+  spec:
+    selector:
+      app: grpc-interop
+    ports:
+      - port: 8443
+        name: https
+        targetPort: 8443
+        protocol: TCP
+      - port: 1110
+        name: h2c
+        targetPort: 1110
+        protocol: TCP
+- apiVersion: v1
+  kind: ConfigMap
+  labels:
+    app: grpc-interop
+  metadata:
+    name: src-config
+  data:
+    data.base64: |
+      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
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    annotations:
+      service.beta.openshift.io/inject-cabundle: "true"
+    labels:
+      app: grpc-interop
+    name: service-ca
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    name: grpc-interop
+    labels:
+      app: grpc-interop
+  spec:
+    containers:
+    - image: golang:1.14
+      name: server
+      command: ["/workdir/grpc-server"]
+      env:
+      - name: GRPC_GO_LOG_VERBOSITY_LEVEL
+        value: "99"
+      - name: GRPC_GO_LOG_SEVERITY_LEVEL
+        value: "info"
+      ports:
+      - containerPort: 8443
+        protocol: TCP
+      - containerPort: 1110
+        protocol: TCP
+      volumeMounts:
+      - name: service-certs
+        mountPath: /etc/service-certs
+      - name: tmp
+        mountPath: /var/run
+      - name: workdir
+        mountPath: /workdir
+      readOnly: true
+    - image: golang:1.14
+      name: client-shell
+      command: ["/bin/bash"]
+      args: ["-c", "sleep 100000"]
+      env:
+      - name: GRPC_GO_LOG_VERBOSITY_LEVEL
+        value: "99"
+      - name: GRPC_GO_LOG_SEVERITY_LEVEL
+        value: "info"
+      volumeMounts:
+      - name: service-certs
+        secret:
+          secretName: service-certs
+        mountPath: /etc/service-certs
+      - name: tmp
+        mountPath: /var/run
+      - name: workdir
+        mountPath: /workdir
+      - name: service-ca
+        mountPath: /etc/service-ca
+    initContainers:
+    - image: golang:1.14
+      name: builder
+      command: ["/bin/bash", "-c"]
+      args:
+        - set -e;
+          cd /workdir;
+          base64 -d /go/src/data.base64 | tar zxf -;
+          go build -v -mod=readonly -o /workdir/grpc-client client.go;
+          go build -v -mod=readonly -o /workdir/grpc-server server.go;
+      env:
+      - name: GO111MODULE
+        value: "auto"
+      - name: GOCACHE
+        value: "/tmp"
+      - name: GOPROXY
+        value: "https://goproxy.golang.org,direct"
+      volumeMounts:
+      - name: src-volume
+        mountPath: /go/src
+      - name: tmp
+        mountPath: /var/run
+      - name: workdir
+        mountPath: /workdir
+    volumes:
+    - name: src-volume
+      configMap:
+        name: src-config
+    - name: service-certs
+      secret:
+        secretName: service-certs
+    - name: tmp
+      emptyDir: {}
+    - name: workdir
+      emptyDir: {}
+    - configMap:
+        items:
+        - key: service-ca.crt
+          path: service-ca.crt
+        name: service-ca
+      name: service-ca
+  labels:
+    app: grpc-interop
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    annotations:
+      haproxy.router.openshift.io/enable-h2c: "true"
+    labels:
+      app: grpc-interop
+    name: grpc-interop-edge
+  spec:
+    port:
+      targetPort: 1110
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+    to:
+      kind: Service
+      name: grpc-interop
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    labels:
+      app: grpc-interop
+    name: grpc-interop-reencrypt
+  spec:
+    port:
+      targetPort: 8443
+    tls:
+      termination: reencrypt
+      insecureEdgeTerminationPolicy: Redirect
+    to:
+      kind: Service
+      name: grpc-interop
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    labels:
+      app: grpc-interop
+    name: grpc-interop-passthrough
+  spec:
+    port:
+      targetPort: 8443
+    tls:
+      termination: passthrough
+      insecureEdgeTerminationPolicy: Redirect
+    to:
+      kind: Service
+      name: grpc-interop
+      weight: 100
+    wildcardPolicy: None
