@@ -121,7 +121,7 @@ func certToString(derBytes []byte) []string {
 	return strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
 }
 
-func genCertKeyPair(hosts ...string) ([]byte, *ecdsa.PrivateKey) {
+func genCertKeyPair(hosts ...string) ([]byte, []byte, *ecdsa.PrivateKey) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
@@ -151,7 +151,8 @@ func genCertKeyPair(hosts ...string) ([]byte, *ecdsa.PrivateKey) {
 		IsCA:                  true,
 	}
 
-	if _, err := x509.CreateCertificate(rand.Reader, &rootTemplate, &rootTemplate, &rootKey.PublicKey, rootKey); err != nil {
+	rootDerBytes, err := x509.CreateCertificate(rand.Reader, &rootTemplate, &rootTemplate, &rootKey.PublicKey, rootKey)
+	if err != nil {
 		log.Fatalf("failed to create root certificate: %v", err)
 	}
 
@@ -192,7 +193,7 @@ func genCertKeyPair(hosts ...string) ([]byte, *ecdsa.PrivateKey) {
 		log.Fatalf("failed to create leaf certificate: %v", err)
 	}
 
-	return derBytes, leafKey
+	return rootDerBytes, derBytes, leafKey
 }
 
 func main() {
@@ -203,8 +204,8 @@ func main() {
 	tlsSpacer := strings.Repeat(" ", 8)
 	dataSpacer := strings.Repeat(" ", 6)
 
-	edgeCert, edgeKey := genCertKeyPair("http2-edge-*.apps")
-	reencryptCert, reencryptKey := genCertKeyPair("http2-reencrypt-*.apps")
+	edgeCACert, edgeCert, edgeKey := genCertKeyPair()
+	reencryptCACert, reencryptCert, reencryptKey := genCertKeyPair()
 
 	fmt.Printf(`apiVersion: v1
 kind: Template
@@ -214,23 +215,21 @@ objects:
   metadata:
     name: http2
     annotations:
-      service.beta.openshift.io/serving-cert-secret-name: service-certs
+      service.beta.openshift.io/serving-cert-secret-name: serving-cert-http2
   spec:
     selector:
-      app: http2
+      name: http2
     ports:
-      - port: 8443
-        name: https
+      - name: https
+        protocol: TCP
+        port: 27443
         targetPort: 8443
+      - name: http
         protocol: TCP
-      - port: 1110
-        name: h2c
-        targetPort: 1110
-        protocol: TCP
+        port: 8080
+        targetPort: 8080
 - apiVersion: v1
   kind: ConfigMap
-  labels:
-    app: http2
   metadata:
     name: src-config
   data:
@@ -239,32 +238,29 @@ objects:
 - apiVersion: v1
   kind: ConfigMap
   metadata:
-    annotations:
-      service.beta.openshift.io/inject-cabundle: "true"
-    labels:
-      app: http2
-    name: service-ca
+    name: serving-cert-http2
 - apiVersion: v1
   kind: Pod
   metadata:
     name: http2
     labels:
-      app: http2
+      name: http2
   spec:
     containers:
     - image: golang:1.14
       name: server
       command: ["/workdir/http2-server"]
+      env:
+      - name: GODEBUG
+        value: http2debug=2
       ports:
       - containerPort: 8443
         protocol: TCP
-      - containerPort: 1110
+      - containerPort: 8080
         protocol: TCP
       volumeMounts:
-      - name: service-certs
-        mountPath: /etc/service-certs
-      - name: tmp
-        mountPath: /var/run
+      - name: cert
+        mountPath: /etc/serving-cert
       - name: workdir
         mountPath: /workdir
       readOnly: true
@@ -285,46 +281,38 @@ objects:
       - name: GOPROXY
         value: "https://goproxy.golang.org,direct"
       volumeMounts:
+      - name: cert
+        mountPath: /etc/serving-cert
       - name: src-volume
         mountPath: /go/src
-      - name: tmp
-        mountPath: /var/run
       - name: workdir
         mountPath: /workdir
     volumes:
     - name: src-volume
       configMap:
         name: src-config
-    - name: service-certs
+    - name: cert
       secret:
-        secretName: service-certs
+        secretName: serving-cert-http2
     - name: tmp
       emptyDir: {}
     - name: workdir
       emptyDir: {}
-    - configMap:
-        items:
-        - key: service-ca.crt
-          path: service-ca.crt
-        name: service-ca
-      name: service-ca
-  labels:
-    app: http2
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
-    labels:
-      app: http2
     name: http2-edge
   spec:
     port:
-      targetPort: 1110
+      targetPort: 8080
     tls:
       termination: edge
       insecureEdgeTerminationPolicy: Redirect
       key: |-
 %s
       certificate: |-
+%s
+      caCertificate: |-
 %s
     to:
       kind: Service
@@ -334,8 +322,6 @@ objects:
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
-    labels:
-      app: http2
     name: http2-reencrypt
   spec:
     port:
@@ -347,6 +333,8 @@ objects:
 %s
       certificate: |-
 %s
+      caCertificate: |-
+%s
     to:
       kind: Service
       name: http2
@@ -355,8 +343,6 @@ objects:
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
-    labels:
-      app: http2
     name: http2-passthrough
   spec:
     port:
@@ -373,6 +359,8 @@ objects:
 		strings.Join(addPrefix(data, dataSpacer), "\n"),
 		strings.Join(addPrefix(keyToString(edgeKey), tlsSpacer), "\n"),
 		strings.Join(addPrefix(certToString(edgeCert), tlsSpacer), "\n"),
+		strings.Join(addPrefix(certToString(edgeCACert), tlsSpacer), "\n"),
 		strings.Join(addPrefix(keyToString(reencryptKey), tlsSpacer), "\n"),
-		strings.Join(addPrefix(certToString(reencryptCert), tlsSpacer), "\n"))
+		strings.Join(addPrefix(certToString(reencryptCert), tlsSpacer), "\n"),
+		strings.Join(addPrefix(certToString(reencryptCACert), tlsSpacer), "\n"))
 }

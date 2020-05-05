@@ -16,10 +16,10 @@ $(TEST_FIXTURE): $(SOURCES) ./test-fixture-gen/gen.go Makefile
 
 build-check:
 	@echo Verifying server builds OK...
-	@(cd $(CLUSTER_DIR); \
-		GO111MODULE=on go build -o /dev/null server/server.go; \
-		GO111MODULE=on go mod tidy; \
-		GO111MODULE=on go mod verify)
+	cd $(CLUSTER_DIR) && \
+	GO111MODULE=on go build -o /dev/null server/server.go && \
+	GO111MODULE=on go mod verify && \
+	GO111MODULE=on go mod tidy
 
 $(BINDATA): $(TEST_FIXTURE)
 	(cd ../../../..; ./hack/update-generated-bindata.sh)

@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	defaultPort   = "8443"
-	defaultTLSCrt = "/etc/service-certs/tls.crt"
-	defaultTLSKey = "/etc/service-certs/tls.key"
+	defaultHTTPPort  = "8080"
+	defaultHTTPSPort = "8443"
+	defaultTLSCrt    = "/etc/serving-cert/tls.crt"
+	defaultTLSKey    = "/etc/serving-cert/tls.key"
 )
 
 func lookupEnv(key, defaultVal string) string {
@@ -21,16 +22,30 @@ func lookupEnv(key, defaultVal string) string {
 }
 
 func main() {
-	crt := lookupEnv("TLS_CRT", defaultTLSCrt)
-	key := lookupEnv("TLS_KEY", defaultTLSKey)
+	crtFile := lookupEnv("TLS_CRT", defaultTLSCrt)
+	keyFile := lookupEnv("TLS_KEY", defaultTLSKey)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte(fmt.Sprintf("Hello %q, request protocol is %q\n", req.RemoteAddr, req.Proto)))
 	})
 
-	log.Printf("Listening on port 8443")
+	go func() {
+		port := lookupEnv("PORT", defaultHTTPPort)
+		log.Printf("Listening on port %v\n", port)
 
-	if err := http.ListenAndServeTLS(":"+lookupEnv("PORT", defaultPort), crt, key, nil); err != nil {
-		log.Fatal(err)
-	}
+		if err := http.ListenAndServe(":"+port, nil); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	go func() {
+		port := lookupEnv("PORT", defaultHTTPSPort)
+		log.Printf("Listening securely on port %v\n", port)
+
+		if err := http.ListenAndServeTLS(":"+port, crtFile, keyFile, nil); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	select {}
 }

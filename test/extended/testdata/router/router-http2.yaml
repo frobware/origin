@@ -1,0 +1,207 @@
+apiVersion: v1
+kind: Template
+objects:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: http2
+    annotations:
+      service.beta.openshift.io/serving-cert-secret-name: serving-cert-http2
+  spec:
+    selector:
+      name: http2
+    ports:
+      - name: https
+        protocol: TCP
+        port: 27443
+        targetPort: 8443
+      - name: http
+        protocol: TCP
+        port: 8080
+        targetPort: 8080
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: src-config
+  data:
+    data.base64: |
+      H4sIAAAAAAAC/+xW4WvbOhD3V+mv0BMU7PfyHDlO0tLSD6W0FBp4oQlvjG0Mz7l4JrLkSHJKKP7f
+      h2S3TRjrWGEt2/z7chH3u7vf6U7BmQwLufB+KhhjbDweWhsdjtiubRAzL4rHo+FgMB4y5rEoGo0O
+      PcK8F0ClTaI8xpK8eJL3PX/byoP9RVDIRcWBpLzSBhTGmSRRGMXY6/BHIJOhropXfv/sq/c/ZlH3
+      /l8CGtQGVJjJ15v/gA2jZv4xGw/iyGPRII7ibv4vgTJJV0kGpEhygXFelFIZ4mNEl4WhGFEuM2sE
+      mP5nY0r7W2qKA4xTKbSjLmCZVNxczefTqY0mp4QesSNG91wz57Ou4TB+dM0ns3Mb46L6YNK+3chc
+      ZP+moEzfcB2myuzxr2H7JH8FWydwWYmUcClXVXkhNv4Ktj3SZvk/4UQblYssaC25wyhfkk3Ce0Su
+      yPEpkTqc7AYHJ9ZxhxFSYColLBejGt8fH1Pjui1uL9UPbEyqzGXOweZ9VETnk9nH85s5fdDV3EaA
+      0Qq23+BfX7zd41/DNsAY2eGEV4lYcLisROrTPu0RK8K/Jc53A7qUQsMblRtQPaJgTf5uPesKtHE6
+      0W3oCP67D5+2BvxlYcJZqXJhlj69As4lOVi7YBtCSiWNTCUnuSYH6/eCOld4A4U0cLZYNHXCqaUF
+      QYBRbbVmslHWVHQbt9/n9L/dS7lfrAAjxGUWTls5k1wbEHZ2UhCX5WDjJJSOjJEdKChlk7tGm4Az
+      sZjZPz2fHtN/LLVHRM6DE0f969QenC5X6zIxCfdBKVu8xqj2n9nA7OkONKSVAr59XivzyWynm3bX
+      eqRdoh/vTwOH1JC7Gtfdh2CHDh06/J74EgAA//9oBf3mABIAAA==
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: serving-cert-http2
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    name: http2
+    labels:
+      name: http2
+  spec:
+    containers:
+    - image: golang:1.14
+      name: server
+      command: ["/workdir/http2-server"]
+      env:
+      - name: GODEBUG
+        value: http2debug=2
+      ports:
+      - containerPort: 8443
+        protocol: TCP
+      - containerPort: 8080
+        protocol: TCP
+      volumeMounts:
+      - name: cert
+        mountPath: /etc/serving-cert
+      - name: workdir
+        mountPath: /workdir
+      readOnly: true
+    initContainers:
+    - image: golang:1.14
+      name: builder
+      command: ["/bin/bash", "-c"]
+      args:
+        - set -e;
+          cd /workdir;
+          base64 -d /go/src/data.base64 | tar zxf -;
+          go build -v -mod=readonly -o /workdir/http2-server server.go;
+      env:
+      - name: GO111MODULE
+        value: "auto"
+      - name: GOCACHE
+        value: "/tmp"
+      - name: GOPROXY
+        value: "https://goproxy.golang.org,direct"
+      volumeMounts:
+      - name: cert
+        mountPath: /etc/serving-cert
+      - name: src-volume
+        mountPath: /go/src
+      - name: workdir
+        mountPath: /workdir
+    volumes:
+    - name: src-volume
+      configMap:
+        name: src-config
+    - name: cert
+      secret:
+        secretName: serving-cert-http2
+    - name: tmp
+      emptyDir: {}
+    - name: workdir
+      emptyDir: {}
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: http2-edge
+  spec:
+    port:
+      targetPort: 8080
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+      key: |-
+        -----BEGIN EC PRIVATE KEY-----
+        MHcCAQEEIHbh7yfHYzxDKuOo0r+gFNqb5LyOIzM4aeHBGqN05kPvoAoGCCqGSM49
+        AwEHoUQDQgAEvaou1ntVR7HkMv+vw7rEjaJDl6gIgsj7LeEw0HexUPkKGvU1nNmV
+        fC1KyBQY9PhuLXRrYm9pVfwNWrA7+Pb0iw==
+        -----END EC PRIVATE KEY-----
+      certificate: |-
+        -----BEGIN CERTIFICATE-----
+        MIIBfzCCASWgAwIBAgIQSQ8fL8IUgvnPuqmK5XFr/DAKBggqhkjOPQQDAjAkMRAw
+        DgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQDEwdSb290IENBMCAXDTIwMDUwNTE1NTkz
+        NloYDzIxMjAwNDExMTU1OTM2WjAmMRAwDgYDVQQKEwdSZWQgSGF0MRIwEAYDVQQD
+        DAl0ZXN0X2NlcnQwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAS9qi7We1VHseQy
+        /6/DusSNokOXqAiCyPst4TDQd7FQ+Qoa9TWc2ZV8LUrIFBj0+G4tdGtib2lV/A1a
+        sDv49vSLozUwMzAOBgNVHQ8BAf8EBAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwEw
+        DAYDVR0TAQH/BAIwADAKBggqhkjOPQQDAgNIADBFAiEAtVTRLx9t/OjEhzN2S8Kx
+        4SGe0YYJN4YcBd1K0KVjVBUCIHAa1vBUzLWGIxkxicgJdl9PV5cnZCiY4SASenZC
+        gkm6
+        -----END CERTIFICATE-----
+      caCertificate: |-
+        -----BEGIN CERTIFICATE-----
+        MIIBgTCCASegAwIBAgIRAIb0AW3O3HEC+HupaV+vLuAwCgYIKoZIzj0EAwIwJDEQ
+        MA4GA1UEChMHUmVkIEhhdDEQMA4GA1UEAxMHUm9vdCBDQTAgFw0yMDA1MDUxNTU5
+        MzZaGA8yMTIwMDQxMTE1NTkzNlowJDEQMA4GA1UEChMHUmVkIEhhdDEQMA4GA1UE
+        AxMHUm9vdCBDQTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABD/CB0pN2+UOTQac
+        2m7LRz9uJr/8SsAJDj/7oKx9gkQwzi2CSIXdcGBo2J+9hJMDhIYb1g/IItBldV6H
+        3a8WSiKjODA2MA4GA1UdDwEB/wQEAwICBDATBgNVHSUEDDAKBggrBgEFBQcDATAP
+        BgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0gAMEUCIQC5LK1yOUSmIl5DD1Km
+        fCsnfFqzj46sYM0wfCx331j3GgIgDuCTN8it9PfwWr+w5tYc8piL7XrQydbLOW1h
+        wnSlfaU=
+        -----END CERTIFICATE-----
+    to:
+      kind: Service
+      name: http2
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: http2-reencrypt
+  spec:
+    port:
+      targetPort: 8443
+    tls:
+      termination: reencrypt
+      insecureEdgeTerminationPolicy: Redirect
+      key: |-
+        -----BEGIN EC PRIVATE KEY-----
+        MHcCAQEEIBZx4LWl5+vncrFe55lSeCHxSjpLSB2UscUjH5v7+moGoAoGCCqGSM49
+        AwEHoUQDQgAESONIcfElAFfI/KGeMcfIQU6Ui+QmYI96dC5qJlILTFj+tqp4fJ2p
+        V7VxuUIZz8DnIK+hYZrmFVtAl1BlyLq+zA==
+        -----END EC PRIVATE KEY-----
+      certificate: |-
+        -----BEGIN CERTIFICATE-----
+        MIIBgDCCASagAwIBAgIRAJtO1HLqe3q9pHHYtbzfBwswCgYIKoZIzj0EAwIwJDEQ
+        MA4GA1UEChMHUmVkIEhhdDEQMA4GA1UEAxMHUm9vdCBDQTAgFw0yMDA1MDUxNTU5
+        MzZaGA8yMTIwMDQxMTE1NTkzNlowJjEQMA4GA1UEChMHUmVkIEhhdDESMBAGA1UE
+        AwwJdGVzdF9jZXJ0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAESONIcfElAFfI
+        /KGeMcfIQU6Ui+QmYI96dC5qJlILTFj+tqp4fJ2pV7VxuUIZz8DnIK+hYZrmFVtA
+        l1BlyLq+zKM1MDMwDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMB
+        MAwGA1UdEwEB/wQCMAAwCgYIKoZIzj0EAwIDSAAwRQIgU2sds8ZD5s+v8PzZUVoA
+        1tzYIeKcUuyFdmOqbs8FLEECIQDoh3HJ7d+YyrFEpxydf30t99B8hwNsF1fdXv1s
+        0kKW+w==
+        -----END CERTIFICATE-----
+      caCertificate: |-
+        -----BEGIN CERTIFICATE-----
+        MIIBgDCCASagAwIBAgIQEsfT236VA2RvqQ8UQ+za8TAKBggqhkjOPQQDAjAkMRAw
+        DgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQDEwdSb290IENBMCAXDTIwMDUwNTE1NTkz
+        NloYDzIxMjAwNDExMTU1OTM2WjAkMRAwDgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQD
+        EwdSb290IENBMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEySfxKAffqPJ2Rn9I
+        smIB+1wxQgME7X8kzFfbaIyTkebxB/n7dB3xzxmliLtFVLzA2f3n/i/JIEc9b2sa
+        +2oR9KM4MDYwDgYDVR0PAQH/BAQDAgIEMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8G
+        A1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDSAAwRQIgW6jSNSQxDYYJ8BAM7ROf
+        i8bod8h76J/azaLDBlbUvi4CIQCe3Y1d+U2LUgcUQQ1gtmxtm2734BwpIxVD16aE
+        SjGaqw==
+        -----END CERTIFICATE-----
+    to:
+      kind: Service
+      name: http2
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: http2-passthrough
+  spec:
+    port:
+      targetPort: 8443
+    tls:
+      termination: passthrough
+      insecureEdgeTerminationPolicy: Redirect
+    to:
+      kind: Service
+      name: http2
+      weight: 100
+    wildcardPolicy: None
