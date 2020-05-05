@@ -429,13 +429,16 @@
 // test/extended/testdata/roles/empty-role.yaml
 // test/extended/testdata/roles/policy-clusterroles.yaml
 // test/extended/testdata/roles/policy-roles.yaml
+// test/extended/testdata/router/cert.pem
 // test/extended/testdata/router/ingress.yaml
+// test/extended/testdata/router/key.pem
 // test/extended/testdata/router/reencrypt-serving-cert.yaml
 // test/extended/testdata/router/router-common.yaml
 // test/extended/testdata/router/router-config-manager.yaml
 // test/extended/testdata/router/router-grpc-interop.yaml
 // test/extended/testdata/router/router-h2spec.yaml
 // test/extended/testdata/router/router-http-echo-server.yaml
+// test/extended/testdata/router/router-http2.yaml
 // test/extended/testdata/router/router-metrics.yaml
 // test/extended/testdata/router/router-override-domains.yaml
 // test/extended/testdata/router/router-override.yaml
@@ -54326,6 +54329,34 @@ func testExtendedTestdataRolesPolicyRolesYaml() (*asset, error) {
 	return a, nil
 }
 
+var _testExtendedTestdataRouterCertPem = []byte(`-----BEGIN CERTIFICATE-----
+MIIBjDCCATKgAwIBAgIQf3Dbn6OTQUyIUXfpGBJeMTAKBggqhkjOPQQDAjASMRAw
+DgYDVQQKEwdBY21lIENvMCAXDTcwMDEwMTAwMDAwMFoYDzIwODQwMTI5MTYwMDAw
+WjASMRAwDgYDVQQKEwdBY21lIENvMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE
+PsNk1n4A2FbTvkf1E4h//5GoCrn3SYkRxZuRAXarsQx7BV9TTcoDi7IL9KMkVEWR
+/pCe9P1nuFrnHrgRUxz0paNoMGYwDgYDVR0PAQH/BAQDAgKkMBMGA1UdJQQMMAoG
+CCsGAQUFBwMBMA8GA1UdEwEB/wQFMAMBAf8wLgYDVR0RBCcwJYILZXhhbXBsZS5j
+b22HBH8AAAGHEAAAAAAAAAAAAAAAAAAAAAEwCgYIKoZIzj0EAwIDSAAwRQIgBM8r
+wzwbve3AV18zRTGBSByfB3tNlU31QlVEV2BfOrsCIQC6UiAWpQqE9CZNHeSiGEBA
+7DfT3v9u7QEMk7SuoVsdGg==
+-----END CERTIFICATE-----
+`)
+
+func testExtendedTestdataRouterCertPemBytes() ([]byte, error) {
+	return _testExtendedTestdataRouterCertPem, nil
+}
+
+func testExtendedTestdataRouterCertPem() (*asset, error) {
+	bytes, err := testExtendedTestdataRouterCertPemBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "test/extended/testdata/router/cert.pem", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _testExtendedTestdataRouterIngressYaml = []byte(`kind: List
 apiVersion: v1
 items:
@@ -54443,6 +54474,28 @@ func testExtendedTestdataRouterIngressYaml() (*asset, error) {
 	}
 
 	info := bindataFileInfo{name: "test/extended/testdata/router/ingress.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _testExtendedTestdataRouterKeyPem = []byte(`-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgmI9QGTBZq8T/g53w
+QDpYL7hgMXcI9NM6wwBVSMvpCvChRANCAAQ+w2TWfgDYVtO+R/UTiH//kagKufdJ
+iRHFm5EBdquxDHsFX1NNygOLsgv0oyRURZH+kJ70/We4WuceuBFTHPSl
+-----END PRIVATE KEY-----
+`)
+
+func testExtendedTestdataRouterKeyPemBytes() ([]byte, error) {
+	return _testExtendedTestdataRouterKeyPem, nil
+}
+
+func testExtendedTestdataRouterKeyPem() (*asset, error) {
+	bytes, err := testExtendedTestdataRouterKeyPemBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "test/extended/testdata/router/key.pem", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -55621,6 +55674,230 @@ func testExtendedTestdataRouterRouterHttpEchoServerYaml() (*asset, error) {
 	}
 
 	info := bindataFileInfo{name: "test/extended/testdata/router/router-http-echo-server.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _testExtendedTestdataRouterRouterHttp2Yaml = []byte(`apiVersion: v1
+kind: Template
+objects:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: http2
+    annotations:
+      service.beta.openshift.io/serving-cert-secret-name: serving-cert-http2
+  spec:
+    selector:
+      name: http2
+    ports:
+      - name: https
+        protocol: TCP
+        port: 27443
+        targetPort: 8443
+      - name: http
+        protocol: TCP
+        port: 8080
+        targetPort: 8080
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: src-config
+  data:
+    data.base64: |
+      H4sIAAAAAAAC/+xW4WvbOhD3V+mv0BMU7PfyHDlO0tLSD6W0FBp4oQlvjG0Mz7l4JrLkSHJKKP7f
+      h2S3TRjrWGEt2/z7chH3u7vf6U7BmQwLufB+KhhjbDweWhsdjtiubRAzL4rHo+FgMB4y5rEoGo0O
+      PcK8F0ClTaI8xpK8eJL3PX/byoP9RVDIRcWBpLzSBhTGmSRRGMXY6/BHIJOhropXfv/sq/c/ZlH3
+      /l8CGtQGVJjJ15v/gA2jZv4xGw/iyGPRII7ibv4vgTJJV0kGpEhygXFelFIZ4mNEl4WhGFEuM2sE
+      mP5nY0r7W2qKA4xTKbSjLmCZVNxczefTqY0mp4QesSNG91wz57Ou4TB+dM0ns3Mb46L6YNK+3chc
+      ZP+moEzfcB2myuzxr2H7JH8FWydwWYmUcClXVXkhNv4Ktj3SZvk/4UQblYssaC25wyhfkk3Ce0Su
+      yPEpkTqc7AYHJ9ZxhxFSYColLBejGt8fH1Pjui1uL9UPbEyqzGXOweZ9VETnk9nH85s5fdDV3EaA
+      0Qq23+BfX7zd41/DNsAY2eGEV4lYcLisROrTPu0RK8K/Jc53A7qUQsMblRtQPaJgTf5uPesKtHE6
+      0W3oCP67D5+2BvxlYcJZqXJhlj69As4lOVi7YBtCSiWNTCUnuSYH6/eCOld4A4U0cLZYNHXCqaUF
+      QYBRbbVmslHWVHQbt9/n9L/dS7lfrAAjxGUWTls5k1wbEHZ2UhCX5WDjJJSOjJEdKChlk7tGm4Az
+      sZjZPz2fHtN/LLVHRM6DE0f969QenC5X6zIxCfdBKVu8xqj2n9nA7OkONKSVAr59XivzyWynm3bX
+      eqRdoh/vTwOH1JC7Gtfdh2CHDh06/J74EgAA//9oBf3mABIAAA==
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: serving-cert-http2
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    name: http2
+    labels:
+      name: http2
+  spec:
+    containers:
+    - image: golang:1.14
+      name: server
+      command: ["/workdir/http2-server"]
+      env:
+      - name: GODEBUG
+        value: http2debug=2
+      ports:
+      - containerPort: 8443
+        protocol: TCP
+      - containerPort: 8080
+        protocol: TCP
+      volumeMounts:
+      - name: cert
+        mountPath: /etc/serving-cert
+      - name: workdir
+        mountPath: /workdir
+      readOnly: true
+    initContainers:
+    - image: golang:1.14
+      name: builder
+      command: ["/bin/bash", "-c"]
+      args:
+        - set -e;
+          cd /workdir;
+          base64 -d /go/src/data.base64 | tar zxf -;
+          go build -v -mod=readonly -o /workdir/http2-server server.go;
+      env:
+      - name: GO111MODULE
+        value: "auto"
+      - name: GOCACHE
+        value: "/tmp"
+      - name: GOPROXY
+        value: "https://goproxy.golang.org,direct"
+      volumeMounts:
+      - name: cert
+        mountPath: /etc/serving-cert
+      - name: src-volume
+        mountPath: /go/src
+      - name: workdir
+        mountPath: /workdir
+    volumes:
+    - name: src-volume
+      configMap:
+        name: src-config
+    - name: cert
+      secret:
+        secretName: serving-cert-http2
+    - name: tmp
+      emptyDir: {}
+    - name: workdir
+      emptyDir: {}
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: http2-edge
+  spec:
+    port:
+      targetPort: 8080
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+      key: |-
+        -----BEGIN EC PRIVATE KEY-----
+        MHcCAQEEILelqszY/prUEoFWu74ktZZynjfqBWEOY/xd+J86TIsRoAoGCCqGSM49
+        AwEHoUQDQgAEVYChXe19o0vbGEKxRxf7I+0I+uJLmbVKXgzSBPUoIme3ZN7SHlBy
+        IunAXU0K8HynA8riVhaOOIS62xVUYUxJjg==
+        -----END EC PRIVATE KEY-----
+      certificate: |-
+        -----BEGIN CERTIFICATE-----
+        MIIBfzCCASWgAwIBAgIQcPg3eCdTeu/GZFoohq+T9DAKBggqhkjOPQQDAjAkMRAw
+        DgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQDEwdSb290IENBMCAXDTIwMDUwNTE2Mjg0
+        MVoYDzIxMjAwNDExMTYyODQxWjAmMRAwDgYDVQQKEwdSZWQgSGF0MRIwEAYDVQQD
+        DAl0ZXN0X2NlcnQwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARVgKFd7X2jS9sY
+        QrFHF/sj7Qj64kuZtUpeDNIE9SgiZ7dk3tIeUHIi6cBdTQrwfKcDyuJWFo44hLrb
+        FVRhTEmOozUwMzAOBgNVHQ8BAf8EBAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwEw
+        DAYDVR0TAQH/BAIwADAKBggqhkjOPQQDAgNIADBFAiAOvtJQJisoWXIKjcuiYpCu
+        snQF+LKS84zcSwCzepDL3gIhAOHozCkAZ91F/FHfCP5eqNLNTeShK5mBMOc1HCjH
+        tdSp
+        -----END CERTIFICATE-----
+      caCertificate: |-
+        -----BEGIN CERTIFICATE-----
+        MIIBgDCCASegAwIBAgIRAKbg3/xU+DU5wcrPy2epre8wCgYIKoZIzj0EAwIwJDEQ
+        MA4GA1UEChMHUmVkIEhhdDEQMA4GA1UEAxMHUm9vdCBDQTAgFw0yMDA1MDUxNjI4
+        NDFaGA8yMTIwMDQxMTE2Mjg0MVowJDEQMA4GA1UEChMHUmVkIEhhdDEQMA4GA1UE
+        AxMHUm9vdCBDQTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABMraj9FcZ7I9Bwhc
+        zqwXjn/zotgpL+yMEQaCdoeJDQ8FoMmXEJqp+6mDE7b5ggoJYaCAn/2uV390Pz7l
+        wL62G5+jODA2MA4GA1UdDwEB/wQEAwICBDATBgNVHSUEDDAKBggrBgEFBQcDATAP
+        BgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0cAMEQCIAKno1Zc2Ckqs23LJaO0
+        d6gSfM6ogDe2GWIei64oqvD6AiBl0Vq+WYoxGqmGbSm64k22kqJwrTuXOAp1ukkr
+        R2qGWA==
+        -----END CERTIFICATE-----
+    to:
+      kind: Service
+      name: http2
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: http2-reencrypt
+  spec:
+    port:
+      targetPort: 8443
+    tls:
+      termination: reencrypt
+      insecureEdgeTerminationPolicy: Redirect
+      key: |-
+        -----BEGIN EC PRIVATE KEY-----
+        MHcCAQEEIEAfd9zGrlCWFwpwmuxZ4RA+bYFkuJRKgJ3dm20YiJzzoAoGCCqGSM49
+        AwEHoUQDQgAE5TADqeKyarIiTTjov1BCQM7K+iCK/ivnlyqW3m/DFZecpXpbw3JT
+        VI2XnCOLRxzoenUQs1qFpEiBy277ZkIPDQ==
+        -----END EC PRIVATE KEY-----
+      certificate: |-
+        -----BEGIN CERTIFICATE-----
+        MIIBfzCCASWgAwIBAgIQXxvJNMhMtV3ZW1iw91SVxDAKBggqhkjOPQQDAjAkMRAw
+        DgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQDEwdSb290IENBMCAXDTIwMDUwNTE2Mjg0
+        MVoYDzIxMjAwNDExMTYyODQxWjAmMRAwDgYDVQQKEwdSZWQgSGF0MRIwEAYDVQQD
+        DAl0ZXN0X2NlcnQwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAATlMAOp4rJqsiJN
+        OOi/UEJAzsr6IIr+K+eXKpbeb8MVl5ylelvDclNUjZecI4tHHOh6dRCzWoWkSIHL
+        bvtmQg8NozUwMzAOBgNVHQ8BAf8EBAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwEw
+        DAYDVR0TAQH/BAIwADAKBggqhkjOPQQDAgNIADBFAiEAyJoloZFIisfRlHigB4d+
+        45bxejUhXmti572/QIN7SqECIAgp4TzW/UElAfcCQm0mNMf3oBfwZ259TFVq8yoY
+        8LVj
+        -----END CERTIFICATE-----
+      caCertificate: |-
+        -----BEGIN CERTIFICATE-----
+        MIIBgTCCASagAwIBAgIQI+ngkgkC9Ce91jBRGr12jDAKBggqhkjOPQQDAjAkMRAw
+        DgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQDEwdSb290IENBMCAXDTIwMDUwNTE2Mjg0
+        MVoYDzIxMjAwNDExMTYyODQxWjAkMRAwDgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQD
+        EwdSb290IENBMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEw9wN4rZTtk/eonwB
+        hTQCuq/UvDWPPJzqx6Ms0K4YRsoyLaI9ikz0tWHhJihwT5ea0Xt1xzpTijq3/LV8
+        WXTAAaM4MDYwDgYDVR0PAQH/BAQDAgIEMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8G
+        A1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDSQAwRgIhAPT9w+A/JEh666DO8tTa
+        7ovURqJ52pt8CMp4jNN+DO0OAiEAuCBfIBvxf+0KvcEwxe7sZsl+/zaz8AlV06Lq
+        J85ZtGA=
+        -----END CERTIFICATE-----
+    to:
+      kind: Service
+      name: http2
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: http2-passthrough
+  spec:
+    port:
+      targetPort: 8443
+    tls:
+      termination: passthrough
+      insecureEdgeTerminationPolicy: Redirect
+    to:
+      kind: Service
+      name: http2
+      weight: 100
+    wildcardPolicy: None
+`)
+
+func testExtendedTestdataRouterRouterHttp2YamlBytes() ([]byte, error) {
+	return _testExtendedTestdataRouterRouterHttp2Yaml, nil
+}
+
+func testExtendedTestdataRouterRouterHttp2Yaml() (*asset, error) {
+	bytes, err := testExtendedTestdataRouterRouterHttp2YamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "test/extended/testdata/router/router-http2.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -59411,13 +59688,16 @@ var _bindata = map[string]func() (*asset, error){
 	"test/extended/testdata/roles/empty-role.yaml": testExtendedTestdataRolesEmptyRoleYaml,
 	"test/extended/testdata/roles/policy-clusterroles.yaml": testExtendedTestdataRolesPolicyClusterrolesYaml,
 	"test/extended/testdata/roles/policy-roles.yaml": testExtendedTestdataRolesPolicyRolesYaml,
+	"test/extended/testdata/router/cert.pem": testExtendedTestdataRouterCertPem,
 	"test/extended/testdata/router/ingress.yaml": testExtendedTestdataRouterIngressYaml,
+	"test/extended/testdata/router/key.pem": testExtendedTestdataRouterKeyPem,
 	"test/extended/testdata/router/reencrypt-serving-cert.yaml": testExtendedTestdataRouterReencryptServingCertYaml,
 	"test/extended/testdata/router/router-common.yaml": testExtendedTestdataRouterRouterCommonYaml,
 	"test/extended/testdata/router/router-config-manager.yaml": testExtendedTestdataRouterRouterConfigManagerYaml,
 	"test/extended/testdata/router/router-grpc-interop.yaml": testExtendedTestdataRouterRouterGrpcInteropYaml,
 	"test/extended/testdata/router/router-h2spec.yaml": testExtendedTestdataRouterRouterH2specYaml,
 	"test/extended/testdata/router/router-http-echo-server.yaml": testExtendedTestdataRouterRouterHttpEchoServerYaml,
+	"test/extended/testdata/router/router-http2.yaml": testExtendedTestdataRouterRouterHttp2Yaml,
 	"test/extended/testdata/router/router-metrics.yaml": testExtendedTestdataRouterRouterMetricsYaml,
 	"test/extended/testdata/router/router-override-domains.yaml": testExtendedTestdataRouterRouterOverrideDomainsYaml,
 	"test/extended/testdata/router/router-override.yaml": testExtendedTestdataRouterRouterOverrideYaml,
@@ -60159,13 +60439,16 @@ var _bintree = &bintree{nil, map[string]*bintree{
 					"policy-roles.yaml": &bintree{testExtendedTestdataRolesPolicyRolesYaml, map[string]*bintree{}},
 				}},
 				"router": &bintree{nil, map[string]*bintree{
+					"cert.pem": &bintree{testExtendedTestdataRouterCertPem, map[string]*bintree{}},
 					"ingress.yaml": &bintree{testExtendedTestdataRouterIngressYaml, map[string]*bintree{}},
+					"key.pem": &bintree{testExtendedTestdataRouterKeyPem, map[string]*bintree{}},
 					"reencrypt-serving-cert.yaml": &bintree{testExtendedTestdataRouterReencryptServingCertYaml, map[string]*bintree{}},
 					"router-common.yaml": &bintree{testExtendedTestdataRouterRouterCommonYaml, map[string]*bintree{}},
 					"router-config-manager.yaml": &bintree{testExtendedTestdataRouterRouterConfigManagerYaml, map[string]*bintree{}},
 					"router-grpc-interop.yaml": &bintree{testExtendedTestdataRouterRouterGrpcInteropYaml, map[string]*bintree{}},
 					"router-h2spec.yaml": &bintree{testExtendedTestdataRouterRouterH2specYaml, map[string]*bintree{}},
 					"router-http-echo-server.yaml": &bintree{testExtendedTestdataRouterRouterHttpEchoServerYaml, map[string]*bintree{}},
+					"router-http2.yaml": &bintree{testExtendedTestdataRouterRouterHttp2Yaml, map[string]*bintree{}},
 					"router-metrics.yaml": &bintree{testExtendedTestdataRouterRouterMetricsYaml, map[string]*bintree{}},
 					"router-override-domains.yaml": &bintree{testExtendedTestdataRouterRouterOverrideDomainsYaml, map[string]*bintree{}},
 					"router-override.yaml": &bintree{testExtendedTestdataRouterRouterOverrideYaml, map[string]*bintree{}},

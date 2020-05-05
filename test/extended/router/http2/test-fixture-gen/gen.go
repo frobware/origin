@@ -201,8 +201,8 @@ func main() {
 
 	data := split(base64.StdEncoding.EncodeToString(makeTarData(flag.Args())), 76)
 
-	tlsSpacer := strings.Repeat(" ", 8)
-	dataSpacer := strings.Repeat(" ", 6)
+	tlsYAMLSpacer := strings.Repeat(" ", 8)
+	dataYAMLSpacer := strings.Repeat(" ", 6)
 
 	edgeCACert, edgeCert, edgeKey := genCertKeyPair()
 	reencryptCACert, reencryptCert, reencryptKey := genCertKeyPair()
@@ -356,11 +356,11 @@ objects:
       weight: 100
     wildcardPolicy: None
 `,
-		strings.Join(addPrefix(data, dataSpacer), "\n"),
-		strings.Join(addPrefix(keyToString(edgeKey), tlsSpacer), "\n"),
-		strings.Join(addPrefix(certToString(edgeCert), tlsSpacer), "\n"),
-		strings.Join(addPrefix(certToString(edgeCACert), tlsSpacer), "\n"),
-		strings.Join(addPrefix(keyToString(reencryptKey), tlsSpacer), "\n"),
-		strings.Join(addPrefix(certToString(reencryptCert), tlsSpacer), "\n"),
-		strings.Join(addPrefix(certToString(reencryptCACert), tlsSpacer), "\n"))
+		strings.Join(addPrefix(data, dataYAMLSpacer), "\n"),
+		strings.Join(addPrefix(keyToString(edgeKey), tlsYAMLSpacer), "\n"),
+		strings.Join(addPrefix(certToString(edgeCert), tlsYAMLSpacer), "\n"),
+		strings.Join(addPrefix(certToString(edgeCACert), tlsYAMLSpacer), "\n"),
+		strings.Join(addPrefix(keyToString(reencryptKey), tlsYAMLSpacer), "\n"),
+		strings.Join(addPrefix(certToString(reencryptCert), tlsYAMLSpacer), "\n"),
+		strings.Join(addPrefix(certToString(reencryptCACert), tlsYAMLSpacer), "\n"))
 }
