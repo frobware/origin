@@ -4,13 +4,22 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/big"
+	"net"
 	"os"
 	"strings"
+	"time"
 )
 
 // readFile reads all data from filename, or fatally fails if an error
@@ -87,10 +96,115 @@ func makeTarData(filenames []string) []byte {
 	return buf.Bytes()
 }
 
+func keyToString(key *ecdsa.PrivateKey) []string {
+	data, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		log.Fatalf("unable to marshal ECDSA private key: %v", err)
+	}
+
+	buf := &bytes.Buffer{}
+
+	if err := pem.Encode(buf, &pem.Block{Type: "EC PRIVATE KEY", Bytes: data}); err != nil {
+		log.Fatal(err)
+	}
+
+	return strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
+}
+
+func certToString(derBytes []byte) []string {
+	buf := &bytes.Buffer{}
+
+	if err := pem.Encode(buf, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		log.Fatalf("failed to encode cert data: %v", err)
+	}
+
+	return strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
+}
+
+func genCertKeyPair(hosts ...string) ([]byte, *ecdsa.PrivateKey) {
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		log.Fatalf("failed to generate serial number: %v", err)
+	}
+
+	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		log.Fatalf("failed to generate ECDSA key: %v", err)
+	}
+
+	validFor := 100 * time.Hour * 24 * 365 // 100 years
+	notBefore := time.Now()
+	notAfter := notBefore.Add(validFor)
+
+	rootTemplate := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			Organization: []string{"Red Hat"},
+			CommonName:   "Root CA",
+		},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+
+	if _, err := x509.CreateCertificate(rand.Reader, &rootTemplate, &rootTemplate, &rootKey.PublicKey, rootKey); err != nil {
+		log.Fatalf("failed to create root certificate: %v", err)
+	}
+
+	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		log.Fatalf("failed to generate ECDSA key: %v", err)
+	}
+
+	serialNumber, err = rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		log.Fatalf("failed to generate serial number: %v", err)
+	}
+
+	leafCertTemplate := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			Organization: []string{"Red Hat"},
+			CommonName:   "test_cert",
+		},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  false,
+	}
+
+	for _, h := range hosts {
+		if ip := net.ParseIP(h); ip != nil {
+			leafCertTemplate.IPAddresses = append(leafCertTemplate.IPAddresses, ip)
+		} else {
+			leafCertTemplate.DNSNames = append(leafCertTemplate.DNSNames, h)
+		}
+	}
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &leafCertTemplate, &rootTemplate, &leafKey.PublicKey, rootKey)
+	if err != nil {
+		log.Fatalf("failed to create leaf certificate: %v", err)
+	}
+
+	return derBytes, leafKey
+}
+
 func main() {
 	flag.Parse()
 
 	data := split(base64.StdEncoding.EncodeToString(makeTarData(flag.Args())), 76)
+
+	tlsSpacer := strings.Repeat(" ", 8)
+	dataSpacer := strings.Repeat(" ", 6)
+
+	edgeCert, edgeKey := genCertKeyPair("grpc-interop-edge-*.apps")
+	reencryptCert, reencryptKey := genCertKeyPair("grpc-interop-reencrypt-*.apps")
 
 	fmt.Printf(`apiVersion: v1
 kind: Template
@@ -231,6 +345,10 @@ objects:
     tls:
       termination: edge
       insecureEdgeTerminationPolicy: Redirect
+      key: |-
+%s
+      certificate: |-
+%s
     to:
       kind: Service
       name: grpc-interop
@@ -248,6 +366,10 @@ objects:
     tls:
       termination: reencrypt
       insecureEdgeTerminationPolicy: Redirect
+      key: |-
+%s
+      certificate: |-
+%s
     to:
       kind: Service
       name: grpc-interop
@@ -271,5 +393,9 @@ objects:
       weight: 100
     wildcardPolicy: None
 `,
-		strings.Join(addPrefix(data, strings.Repeat(" ", 6)), "\n"))
+		strings.Join(addPrefix(data, dataSpacer), "\n"),
+		strings.Join(addPrefix(keyToString(edgeKey), tlsSpacer), "\n"),
+		strings.Join(addPrefix(certToString(edgeCert), tlsSpacer), "\n"),
+		strings.Join(addPrefix(keyToString(reencryptKey), tlsSpacer), "\n"),
+		strings.Join(addPrefix(certToString(reencryptCert), tlsSpacer), "\n"))
 }
