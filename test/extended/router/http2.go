@@ -133,12 +133,33 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				routeType:         routev1.TLSTerminationReencrypt,
 				routeHostPrefix:   "http2-custom-cert",
 				frontendProto:     "HTTP/1.1",
-				backendProto:      "HTTP/2.0", // reencrypt always has ALPN negotiation enabled
+				backendProto:      "HTTP/2.0", // reencrypt always has backend ALPN negotiation enabled
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: false,
 			}, {
 				routeType:         routev1.TLSTerminationPassthrough,
 				routeHostPrefix:   "http2-custom-cert",
+				frontendProto:     "HTTP/1.1",
+				backendProto:      "HTTP/1.1",
+				statusCode:        http.StatusOK,
+				useHTTP2Transport: false,
+			}, {
+				routeType:         routev1.TLSTerminationEdge,
+				routeHostPrefix:   "http2-default-cert",
+				frontendProto:     "HTTP/1.1",
+				backendProto:      "HTTP/1.1",
+				statusCode:        http.StatusOK,
+				useHTTP2Transport: false,
+			}, {
+				routeType:         routev1.TLSTerminationReencrypt,
+				routeHostPrefix:   "http2-default-cert",
+				frontendProto:     "HTTP/1.1",
+				backendProto:      "HTTP/2.0", // reencrypt always has backend ALPN negotiation enabled
+				statusCode:        http.StatusOK,
+				useHTTP2Transport: false,
+			}, {
+				routeType:         routev1.TLSTerminationPassthrough,
+				routeHostPrefix:   "http2-default-cert",
 				frontendProto:     "HTTP/1.1",
 				backendProto:      "HTTP/1.1",
 				statusCode:        http.StatusOK,
