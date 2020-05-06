@@ -122,6 +122,27 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				backendProto:      "HTTP/2.0",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: true,
+			}, {
+				routeType:         routev1.TLSTerminationEdge,
+				routeHostPrefix:   "http2-custom-cert",
+				frontendProto:     "HTTP/1.1",
+				backendProto:      "HTTP/1.1",
+				statusCode:        http.StatusOK,
+				useHTTP2Transport: false,
+			}, {
+				routeType:         routev1.TLSTerminationReencrypt,
+				routeHostPrefix:   "http2-custom-cert",
+				frontendProto:     "HTTP/1.1",
+				backendProto:      "HTTP/2.0", // reencrypt always has ALPN negotiation enabled
+				statusCode:        http.StatusOK,
+				useHTTP2Transport: false,
+			}, {
+				routeType:         routev1.TLSTerminationPassthrough,
+				routeHostPrefix:   "http2-custom-cert",
+				frontendProto:     "HTTP/1.1",
+				backendProto:      "HTTP/1.1",
+				statusCode:        http.StatusOK,
+				useHTTP2Transport: false,
 			}}
 
 			for i, tc := range testCases {
