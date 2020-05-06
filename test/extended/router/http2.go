@@ -4,9 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
-	"os"
+	"strings"
 	"time"
 
 	g "github.com/onsi/ginkgo"
@@ -16,20 +16,38 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	routeclientset "github.com/openshift/client-go/route/clientset/versioned"
 	exutil "github.com/openshift/origin/test/extended/util"
-	"github.com/openshift/origin/test/extended/util/url"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
 const (
-	// http2TestTimeout is the timeout value for the
-	// internal tests.
-	http2TestTimeout = 2 * time.Minute
-
-	// http2TestCaseIterations is the number of times each test
-	// case should be invoked.
-	http2TestCaseIterations = 5
+	// http2ClientGetTimeout specifies the time limit for requests
+	// made by the HTTP Client.
+	http2ClientTimeout = 1 * time.Minute
 )
+
+func makeHTTPClient(useHTTP2Transport bool, timeout time.Duration) *http.Client {
+	tls := tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	c := &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls,
+		},
+	}
+
+	if useHTTP2Transport {
+		c.Transport = &http2.Transport{
+			TLSClientConfig: &tls,
+		}
+	}
+
+	return c
+}
 
 var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Router]", func() {
 	defer g.GinkgoRecover()
@@ -56,61 +74,65 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			g.By(fmt.Sprintf("creating test fixture from a config file %q", configPath))
 			err := oc.Run("new-app").Args("-f", configPath).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
-			e2e.ExpectNoError(oc.KubeFramework().WaitForPodRunning("http2"))
+			e2e.ExpectNoError(oc.KubeFramework().WaitForPodRunningSlow("http2"))
 
-			for _, route := range []routev1.TLSTerminationType{
-				routev1.TLSTerminationEdge,
-				routev1.TLSTerminationReencrypt,
-				routev1.TLSTerminationPassthrough,
-			} {
-				g.By("verifying accessing the host returns a 200 status code")
-				urlTester := url.NewTester(oc.AdminKubeClient(), oc.KubeFramework().Namespace.Name).WithErrorPassthrough(true)
-				defer urlTester.Close()
-				hostname := getHostnameForRoute(oc, fmt.Sprintf("http2-%s", route))
-				urlTester.Within(30*time.Second, url.Expect("GET", "https://"+hostname).Through(hostname).SkipTLSVerification().HasStatusCode(200))
+			for _, tc := range []struct {
+				routeType         routev1.TLSTerminationType
+				routeHostPrefix   string
+				frontendProto     string
+				backendProto      string
+				expectedStatus    int
+				useHTTP2Transport bool
+			}{{
+				routeType:         routev1.TLSTerminationEdge,
+				routeHostPrefix:   "http2-custom-cert",
+				frontendProto:     "HTTP/2.0",
+				backendProto:      "HTTP/1.1",
+				expectedStatus:    http.StatusOK,
+				useHTTP2Transport: true,
+			}, {
+				routeType:         routev1.TLSTerminationReencrypt,
+				routeHostPrefix:   "http2-custom-cert",
+				frontendProto:     "HTTP/2.0",
+				backendProto:      "HTTP/2.0",
+				expectedStatus:    http.StatusOK,
+				useHTTP2Transport: true,
+			}, {
+				routeType:         routev1.TLSTerminationPassthrough,
+				routeHostPrefix:   "http2-custom-cert",
+				frontendProto:     "HTTP/2.0",
+				backendProto:      "HTTP/2.0",
+				expectedStatus:    http.StatusOK,
+				useHTTP2Transport: true,
+			}} {
+				hostname := getHostnameForRoute(oc, fmt.Sprintf("%s-%s", tc.routeHostPrefix, tc.routeType))
+				err := wait.Poll(time.Second, 30*time.Second, func() (bool, error) {
+					client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
+					url := "https://" + hostname
+					resp, err := client.Get(url)
+					if err != nil {
+						e2e.Logf("client.Get(%q) failed: %v, retrying...", url, err)
+						return false, nil
+					}
+					id := tc.routeHostPrefix + "-" + string(tc.routeType)
+					defer resp.Body.Close()
+					if !(resp.StatusCode == tc.expectedStatus && resp.Proto == tc.frontendProto) {
+						e2e.Logf("[%s] Response(status: %v, protocol: %q), Expected(status: %v, protocol: %q), retrying...", id, resp.StatusCode, resp.Proto, tc.expectedStatus, tc.frontendProto)
+						return false, nil
+					}
+					body, err := ioutil.ReadAll(resp.Body)
+					if err != nil {
+						e2e.Logf("[%s] ReadAll(resp.Body) failed: %q, retrying...", id, err)
+						return false, nil
+					}
+					if !strings.Contains(string(body), tc.backendProto) {
+						e2e.Logf("[%s] backend protocol not matched; expected %q, got %q, retrying...", tc.backendProto, string(body))
+						return false, nil
+					}
+					return true, nil
+				})
+				o.Expect(err).NotTo(o.HaveOccurred())
 			}
-
-			http2ExecOutOfClusterRouteTests(oc, http2TestCaseIterations)
 		})
 	})
 })
-
-// http2ExecOutOfClusterRouteTests run http2 tests using
-// routes and from outside of the test cluster.
-func http2ExecOutOfClusterRouteTests(oc *exutil.CLI, iterations int) {
-	for _, route := range []routev1.TLSTerminationType{
-		routev1.TLSTerminationEdge,
-		routev1.TLSTerminationReencrypt,
-		routev1.TLSTerminationPassthrough,
-	} {
-		// client := &http.Client{
-		// 	Transport: &http.Transport{
-		// 		TLSClientConfig: &tls.Config{
-		// 			InsecureSkipVerify: true,
-		// 		},
-		// 	},
-		// 	Timeout: http2TestTimeout,
-		// }
-
-		client := &http.Client{
-			Transport: &http2.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-				},
-			},
-			Timeout: http2TestTimeout,
-		}
-
-		hostname := getHostnameForRoute(oc, fmt.Sprintf("http2-%s", route))
-		resp, err := client.Get("https://" + hostname)
-		o.Expect(err).NotTo(o.HaveOccurred())
-		defer resp.Body.Close()
-		io.Copy(os.Stdout, resp.Body)
-	}
-}
-
-// http2ExecClientShellCmd runs the given cmd in the context of
-// the "client-shell" container in the "http2" POD.
-func http2ExecClientShellCmd(ns string, timeout time.Duration, cmd string) (string, error) {
-	return e2e.RunKubectl(ns, "exec", fmt.Sprintf("--namespace=%v", ns), "http2", "-c", "client-shell", "--", "/bin/sh", "-x", "-c", fmt.Sprintf("timeout %v %s", timeout.Seconds(), cmd))
-}

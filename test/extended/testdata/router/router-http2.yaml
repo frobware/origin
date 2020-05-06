@@ -25,18 +25,18 @@ objects:
     name: src-config
   data:
     data.base64: |
-      H4sIAAAAAAAC/+xW4WvbOhD3V+mv0BMU7PfyHDlO0tLSD6W0FBp4oQlvjG0Mz7l4JrLkSHJKKP7f
-      h2S3TRjrWGEt2/z7chH3u7vf6U7BmQwLufB+KhhjbDweWhsdjtiubRAzL4rHo+FgMB4y5rEoGo0O
-      PcK8F0ClTaI8xpK8eJL3PX/byoP9RVDIRcWBpLzSBhTGmSRRGMXY6/BHIJOhropXfv/sq/c/ZlH3
-      /l8CGtQGVJjJ15v/gA2jZv4xGw/iyGPRII7ibv4vgTJJV0kGpEhygXFelFIZ4mNEl4WhGFEuM2sE
-      mP5nY0r7W2qKA4xTKbSjLmCZVNxczefTqY0mp4QesSNG91wz57Ou4TB+dM0ns3Mb46L6YNK+3chc
-      ZP+moEzfcB2myuzxr2H7JH8FWydwWYmUcClXVXkhNv4Ktj3SZvk/4UQblYssaC25wyhfkk3Ce0Su
-      yPEpkTqc7AYHJ9ZxhxFSYColLBejGt8fH1Pjui1uL9UPbEyqzGXOweZ9VETnk9nH85s5fdDV3EaA
-      0Qq23+BfX7zd41/DNsAY2eGEV4lYcLisROrTPu0RK8K/Jc53A7qUQsMblRtQPaJgTf5uPesKtHE6
-      0W3oCP67D5+2BvxlYcJZqXJhlj69As4lOVi7YBtCSiWNTCUnuSYH6/eCOld4A4U0cLZYNHXCqaUF
-      QYBRbbVmslHWVHQbt9/n9L/dS7lfrAAjxGUWTls5k1wbEHZ2UhCX5WDjJJSOjJEdKChlk7tGm4Az
-      sZjZPz2fHtN/LLVHRM6DE0f969QenC5X6zIxCfdBKVu8xqj2n9nA7OkONKSVAr59XivzyWynm3bX
-      eqRdoh/vTwOH1JC7Gtfdh2CHDh06/J74EgAA//9oBf3mABIAAA==
+      H4sIAAAAAAAC/+xW32vbOhT2q/VX6AoK9r2+jpzEaWnpw6U0FBq4oQkbg8EQzolrIkupJKd4xf/7
+      kOK2Cds6VraWMn8vx+L7zi+do5BcxqVceL8VlFI6Gg2tTQ5Tumu3GFAvGYzSYb8/GlLq0SRJ00MP
+      U+8FUGnDlEcpK8ondT/i21Ye7BtBKRcVB5zxShtQCOUSJ3EyQF6HPwK5jHVVvvL7p1+9/xFNuvf/
+      EtCgNqDiXL7e/PtJv51/mqTpcODRpD/od/N/EaxZtmI54JIVAqGiXEtlcIB8siwNQT7hMrdGgOld
+      G7O231ITFCKUSaGddAFLVnFzMZ9Pp9Ybn2JyRI8o2aNmjrPUcDh4pOaT2Zn1cV49MFnPbmQh8n8z
+      UKZnuI4zZfb0l1A/qV9B7QpcViLDXMpVtT4Xm2AFdYTbKO8Yx9qoQuRha/Ed8osl3jAeYbnCx6dY
+      6niy6xyeWOIO+b4CUylhtchv0P3xMTRq2uT2UoPQ+mTKjAsONu5jRWQ+mX06u5qTh7q2txEifwX1
+      d/SX5x/29JdQhwj5djjxBRMLDuNKZAHpkQjbIoJb7Lgr0GspNLxXhQEVYQU3+O+WualAG1envyxN
+      PF6rQphlcBthcqCJ08ZTJY0Mkd98O9s1MG6uP/+apArYoib3yXK5jbnVugXdv5bp/7t3eL+HIfJ9
+      LvN4uo1LJoU2IOyopcAuysHmoyCR+7Z57PxBKRvclbh1+E8sZvY3MiDH5B8rjbAoeHjipH+d2oOr
+      y+UaM8N4AErZ5A3ym+CZDcye7kBDVing9fNamU9mO920qxnhdud+vj8NHDKD7xrUdP8bO3To0OGN
+      4EsAAAD//xkPUGYAEgAA
 - apiVersion: v1
   kind: ConfigMap
   metadata:
@@ -52,6 +52,12 @@ objects:
     - image: golang:1.14
       name: server
       command: ["/workdir/http2-server"]
+      readinessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 3
+        periodSeconds: 3
       env:
       - name: GODEBUG
         value: http2debug=2
@@ -103,7 +109,52 @@ objects:
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
-    name: http2-edge
+    name: http2-default-cert-edge
+  spec:
+    port:
+      targetPort: 8080
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+    to:
+      kind: Service
+      name: http2
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: http2-default-cert-reencrypt
+  spec:
+    port:
+      targetPort: 8443
+    tls:
+      termination: reencrypt
+      insecureEdgeTerminationPolicy: Redirect
+    to:
+      kind: Service
+      name: http2
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: http2-default-cert-passthrough
+  spec:
+    port:
+      targetPort: 8443
+    tls:
+      termination: passthrough
+      insecureEdgeTerminationPolicy: Redirect
+    to:
+      kind: Service
+      name: http2
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: http2-custom-cert-edge
   spec:
     port:
       targetPort: 8080
@@ -112,33 +163,33 @@ objects:
       insecureEdgeTerminationPolicy: Redirect
       key: |-
         -----BEGIN EC PRIVATE KEY-----
-        MHcCAQEEILelqszY/prUEoFWu74ktZZynjfqBWEOY/xd+J86TIsRoAoGCCqGSM49
-        AwEHoUQDQgAEVYChXe19o0vbGEKxRxf7I+0I+uJLmbVKXgzSBPUoIme3ZN7SHlBy
-        IunAXU0K8HynA8riVhaOOIS62xVUYUxJjg==
+        MHcCAQEEIAup1Jdr6n7Yvj5H7fq2Beg3bh9zd/F4KeVNkGwZXY29oAoGCCqGSM49
+        AwEHoUQDQgAEMmUaVefHDJhOLGA/PKqluKpIeKIE0tIz8kEwOhaOM+XRfK1T2Odz
+        3xnp3jqVGeL/P76Ablpyt3UjVXqS/2jq7w==
         -----END EC PRIVATE KEY-----
       certificate: |-
         -----BEGIN CERTIFICATE-----
-        MIIBfzCCASWgAwIBAgIQcPg3eCdTeu/GZFoohq+T9DAKBggqhkjOPQQDAjAkMRAw
-        DgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQDEwdSb290IENBMCAXDTIwMDUwNTE2Mjg0
-        MVoYDzIxMjAwNDExMTYyODQxWjAmMRAwDgYDVQQKEwdSZWQgSGF0MRIwEAYDVQQD
-        DAl0ZXN0X2NlcnQwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARVgKFd7X2jS9sY
-        QrFHF/sj7Qj64kuZtUpeDNIE9SgiZ7dk3tIeUHIi6cBdTQrwfKcDyuJWFo44hLrb
-        FVRhTEmOozUwMzAOBgNVHQ8BAf8EBAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwEw
-        DAYDVR0TAQH/BAIwADAKBggqhkjOPQQDAgNIADBFAiAOvtJQJisoWXIKjcuiYpCu
-        snQF+LKS84zcSwCzepDL3gIhAOHozCkAZ91F/FHfCP5eqNLNTeShK5mBMOc1HCjH
-        tdSp
+        MIIBgTCCASagAwIBAgIRAI0MkoawZHMRv81Y6XjnBCkwCgYIKoZIzj0EAwIwJDEQ
+        MA4GA1UEChMHUmVkIEhhdDEQMA4GA1UEAxMHUm9vdCBDQTAgFw0yMDA1MDYxMTEx
+        MzNaGA8yMTIwMDQxMjExMTEzM1owJjEQMA4GA1UEChMHUmVkIEhhdDESMBAGA1UE
+        AwwJdGVzdF9jZXJ0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEMmUaVefHDJhO
+        LGA/PKqluKpIeKIE0tIz8kEwOhaOM+XRfK1T2Odz3xnp3jqVGeL/P76Ablpyt3Uj
+        VXqS/2jq76M1MDMwDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMB
+        MAwGA1UdEwEB/wQCMAAwCgYIKoZIzj0EAwIDSQAwRgIhAK+7rWkrAf4aXxq58ZPy
+        175Lb3nuEfT/4Tn8EK+FFg6CAiEA2mPRF2557E4Y9pZD2t/rnJckithC1DoynXbo
+        4QSlqGs=
         -----END CERTIFICATE-----
       caCertificate: |-
         -----BEGIN CERTIFICATE-----
-        MIIBgDCCASegAwIBAgIRAKbg3/xU+DU5wcrPy2epre8wCgYIKoZIzj0EAwIwJDEQ
-        MA4GA1UEChMHUmVkIEhhdDEQMA4GA1UEAxMHUm9vdCBDQTAgFw0yMDA1MDUxNjI4
-        NDFaGA8yMTIwMDQxMTE2Mjg0MVowJDEQMA4GA1UEChMHUmVkIEhhdDEQMA4GA1UE
-        AxMHUm9vdCBDQTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABMraj9FcZ7I9Bwhc
-        zqwXjn/zotgpL+yMEQaCdoeJDQ8FoMmXEJqp+6mDE7b5ggoJYaCAn/2uV390Pz7l
-        wL62G5+jODA2MA4GA1UdDwEB/wQEAwICBDATBgNVHSUEDDAKBggrBgEFBQcDATAP
-        BgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0cAMEQCIAKno1Zc2Ckqs23LJaO0
-        d6gSfM6ogDe2GWIei64oqvD6AiBl0Vq+WYoxGqmGbSm64k22kqJwrTuXOAp1ukkr
-        R2qGWA==
+        MIIBfzCCASagAwIBAgIQMJVWFnFemVqOdrdBfMiEWTAKBggqhkjOPQQDAjAkMRAw
+        DgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQDEwdSb290IENBMCAXDTIwMDUwNjExMTEz
+        M1oYDzIxMjAwNDEyMTExMTMzWjAkMRAwDgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQD
+        EwdSb290IENBMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEozunafHXRgl2QGGC
+        3/ja+bvmp2jHUz+7w8spemFyxQtBUavrxohfw0Hj/RmSmsBab8eMjkAoLfupy3o2
+        bWQokqM4MDYwDgYDVR0PAQH/BAQDAgIEMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8G
+        A1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDRwAwRAIgXD6m3SkXRzwTN2SKnYbB
+        tTCa9cVkpYedp87IY9j282YCIEhcJ6KCjx+UOqBtPeMCKILaWtWwiUrJJ3eedVov
+        VMsw
         -----END CERTIFICATE-----
     to:
       kind: Service
@@ -148,7 +199,7 @@ objects:
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
-    name: http2-reencrypt
+    name: http2-custom-cert-reencrypt
   spec:
     port:
       targetPort: 8443
@@ -157,33 +208,33 @@ objects:
       insecureEdgeTerminationPolicy: Redirect
       key: |-
         -----BEGIN EC PRIVATE KEY-----
-        MHcCAQEEIEAfd9zGrlCWFwpwmuxZ4RA+bYFkuJRKgJ3dm20YiJzzoAoGCCqGSM49
-        AwEHoUQDQgAE5TADqeKyarIiTTjov1BCQM7K+iCK/ivnlyqW3m/DFZecpXpbw3JT
-        VI2XnCOLRxzoenUQs1qFpEiBy277ZkIPDQ==
+        MHcCAQEEIPN2W4ngtcEGm9Hk9U1ZspuB/6zWAHkZdrr98ol8U4RnoAoGCCqGSM49
+        AwEHoUQDQgAEhXmPxAoTowg6uYJ35GlIGRrK4JDvb+beKmiFfmg3/d35UB7RjvpY
+        hioCVnpZgnJlRPxfb7AEbrq5vdEDtncNZA==
         -----END EC PRIVATE KEY-----
       certificate: |-
         -----BEGIN CERTIFICATE-----
-        MIIBfzCCASWgAwIBAgIQXxvJNMhMtV3ZW1iw91SVxDAKBggqhkjOPQQDAjAkMRAw
-        DgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQDEwdSb290IENBMCAXDTIwMDUwNTE2Mjg0
-        MVoYDzIxMjAwNDExMTYyODQxWjAmMRAwDgYDVQQKEwdSZWQgSGF0MRIwEAYDVQQD
-        DAl0ZXN0X2NlcnQwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAATlMAOp4rJqsiJN
-        OOi/UEJAzsr6IIr+K+eXKpbeb8MVl5ylelvDclNUjZecI4tHHOh6dRCzWoWkSIHL
-        bvtmQg8NozUwMzAOBgNVHQ8BAf8EBAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwEw
-        DAYDVR0TAQH/BAIwADAKBggqhkjOPQQDAgNIADBFAiEAyJoloZFIisfRlHigB4d+
-        45bxejUhXmti572/QIN7SqECIAgp4TzW/UElAfcCQm0mNMf3oBfwZ259TFVq8yoY
-        8LVj
+        MIIBfzCCASWgAwIBAgIQRH2BG0wWEr9woy+8mmUG8jAKBggqhkjOPQQDAjAkMRAw
+        DgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQDEwdSb290IENBMCAXDTIwMDUwNjExMTEz
+        M1oYDzIxMjAwNDEyMTExMTMzWjAmMRAwDgYDVQQKEwdSZWQgSGF0MRIwEAYDVQQD
+        DAl0ZXN0X2NlcnQwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASFeY/EChOjCDq5
+        gnfkaUgZGsrgkO9v5t4qaIV+aDf93flQHtGO+liGKgJWelmCcmVE/F9vsARuurm9
+        0QO2dw1kozUwMzAOBgNVHQ8BAf8EBAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwEw
+        DAYDVR0TAQH/BAIwADAKBggqhkjOPQQDAgNIADBFAiBAz7KLaPUa5GP0WAyDdPyP
+        hfL4e2SkG2x1FZTEIuGwIAIhAJNmK7WvxtMHQAERnRd+yLz21ScieAlvIqcWNbXt
+        cb/0
         -----END CERTIFICATE-----
       caCertificate: |-
         -----BEGIN CERTIFICATE-----
-        MIIBgTCCASagAwIBAgIQI+ngkgkC9Ce91jBRGr12jDAKBggqhkjOPQQDAjAkMRAw
-        DgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQDEwdSb290IENBMCAXDTIwMDUwNTE2Mjg0
-        MVoYDzIxMjAwNDExMTYyODQxWjAkMRAwDgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQD
-        EwdSb290IENBMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEw9wN4rZTtk/eonwB
-        hTQCuq/UvDWPPJzqx6Ms0K4YRsoyLaI9ikz0tWHhJihwT5ea0Xt1xzpTijq3/LV8
-        WXTAAaM4MDYwDgYDVR0PAQH/BAQDAgIEMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8G
-        A1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDSQAwRgIhAPT9w+A/JEh666DO8tTa
-        7ovURqJ52pt8CMp4jNN+DO0OAiEAuCBfIBvxf+0KvcEwxe7sZsl+/zaz8AlV06Lq
-        J85ZtGA=
+        MIIBfzCCASagAwIBAgIQeYuQ9aVfawn5fD9kjKO5TDAKBggqhkjOPQQDAjAkMRAw
+        DgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQDEwdSb290IENBMCAXDTIwMDUwNjExMTEz
+        M1oYDzIxMjAwNDEyMTExMTMzWjAkMRAwDgYDVQQKEwdSZWQgSGF0MRAwDgYDVQQD
+        EwdSb290IENBMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDG+MXvb6hdKdiJgU
+        ycQNC+1aE6VXuooShzVvcr92ajL98X2vq08o+IixQ8XBh8OEl5NKIxOj9u4TRBeG
+        AY2Mj6M4MDYwDgYDVR0PAQH/BAQDAgIEMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8G
+        A1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDRwAwRAIgBEXwEsn76/afwcAS2Ssp
+        3sBK/dl7KoBNjdlfW3APoVoCIBg6eH08BrTWYTVaNnodOjd3SwItKxDruMURm7oY
+        h1Uw
         -----END CERTIFICATE-----
     to:
       kind: Service
@@ -193,7 +244,7 @@ objects:
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
-    name: http2-passthrough
+    name: http2-custom-cert-passthrough
   spec:
     port:
       targetPort: 8443

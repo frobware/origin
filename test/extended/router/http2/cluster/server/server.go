@@ -26,7 +26,11 @@ func main() {
 	keyFile := lookupEnv("TLS_KEY", defaultTLSKey)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		w.Write([]byte(fmt.Sprintf("Hello %q, request protocol is %q\n", req.RemoteAddr, req.Proto)))
+		fmt.Fprintf(w, "%s", req.Proto)
+	})
+
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, req *http.Request) {
+		fmt.Fprintf(w, "ready")
 	})
 
 	go func() {

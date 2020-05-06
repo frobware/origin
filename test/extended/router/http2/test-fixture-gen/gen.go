@@ -250,6 +250,12 @@ objects:
     - image: golang:1.14
       name: server
       command: ["/workdir/http2-server"]
+      readinessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 3
+        periodSeconds: 3
       env:
       - name: GODEBUG
         value: http2debug=2
@@ -301,7 +307,52 @@ objects:
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
-    name: http2-edge
+    name: http2-default-cert-edge
+  spec:
+    port:
+      targetPort: 8080
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+    to:
+      kind: Service
+      name: http2
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: http2-default-cert-reencrypt
+  spec:
+    port:
+      targetPort: 8443
+    tls:
+      termination: reencrypt
+      insecureEdgeTerminationPolicy: Redirect
+    to:
+      kind: Service
+      name: http2
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: http2-default-cert-passthrough
+  spec:
+    port:
+      targetPort: 8443
+    tls:
+      termination: passthrough
+      insecureEdgeTerminationPolicy: Redirect
+    to:
+      kind: Service
+      name: http2
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: http2-custom-cert-edge
   spec:
     port:
       targetPort: 8080
@@ -322,7 +373,7 @@ objects:
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
-    name: http2-reencrypt
+    name: http2-custom-cert-reencrypt
   spec:
     port:
       targetPort: 8443
@@ -343,7 +394,7 @@ objects:
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
-    name: http2-passthrough
+    name: http2-custom-cert-passthrough
   spec:
     port:
       targetPort: 8443
