@@ -258,7 +258,7 @@ objects:
         periodSeconds: 3
       env:
       - name: GODEBUG
-        value: http2debug=2
+        value: http2debug=1
       ports:
       - containerPort: 8443
         protocol: TCP

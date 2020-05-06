@@ -76,62 +76,92 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			o.Expect(err).NotTo(o.HaveOccurred())
 			e2e.ExpectNoError(oc.KubeFramework().WaitForPodRunningSlow("http2"))
 
-			for _, tc := range []struct {
+			testCases := []struct {
 				routeType         routev1.TLSTerminationType
 				routeHostPrefix   string
 				frontendProto     string
 				backendProto      string
-				expectedStatus    int
+				statusCode        int
 				useHTTP2Transport bool
+				expectedGetError  string
 			}{{
 				routeType:         routev1.TLSTerminationEdge,
 				routeHostPrefix:   "http2-custom-cert",
 				frontendProto:     "HTTP/2.0",
 				backendProto:      "HTTP/1.1",
-				expectedStatus:    http.StatusOK,
+				statusCode:        http.StatusOK,
 				useHTTP2Transport: true,
 			}, {
 				routeType:         routev1.TLSTerminationReencrypt,
 				routeHostPrefix:   "http2-custom-cert",
 				frontendProto:     "HTTP/2.0",
 				backendProto:      "HTTP/2.0",
-				expectedStatus:    http.StatusOK,
+				statusCode:        http.StatusOK,
 				useHTTP2Transport: true,
 			}, {
 				routeType:         routev1.TLSTerminationPassthrough,
 				routeHostPrefix:   "http2-custom-cert",
 				frontendProto:     "HTTP/2.0",
 				backendProto:      "HTTP/2.0",
-				expectedStatus:    http.StatusOK,
+				statusCode:        http.StatusOK,
 				useHTTP2Transport: true,
-			}} {
-				hostname := getHostnameForRoute(oc, fmt.Sprintf("%s-%s", tc.routeHostPrefix, tc.routeType))
-				err := wait.Poll(time.Second, 30*time.Second, func() (bool, error) {
-					client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
-					url := "https://" + hostname
-					resp, err := client.Get(url)
+			}, {
+				routeType:         routev1.TLSTerminationEdge,
+				routeHostPrefix:   "http2-default-cert",
+				useHTTP2Transport: true,
+				expectedGetError:  `http2: unexpected ALPN protocol ""; want "h2"`,
+			}, {
+				routeType:         routev1.TLSTerminationReencrypt,
+				routeHostPrefix:   "http2-default-cert",
+				useHTTP2Transport: true,
+				expectedGetError:  `http2: unexpected ALPN protocol ""; want "h2"`,
+			}, {
+				routeType:         routev1.TLSTerminationPassthrough,
+				routeHostPrefix:   "http2-default-cert",
+				frontendProto:     "HTTP/2.0",
+				backendProto:      "HTTP/2.0",
+				statusCode:        http.StatusOK,
+				useHTTP2Transport: true,
+			}}
+
+			for i, tc := range testCases {
+				testConfig := fmt.Sprintf("%+v", tc)
+				e2e.Logf("[test #%d/%d]: config: %s", i+1, len(testCases), testConfig)
+
+				var resp *http.Response
+				client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
+
+				o.Expect(wait.Poll(time.Second, 30*time.Second, func() (bool, error) {
+					var err error
+					url := "https://" + getHostnameForRoute(oc, fmt.Sprintf("%s-%s", tc.routeHostPrefix, tc.routeType))
+					resp, err = client.Get(url)
+					if err != nil && tc.expectedGetError != "" {
+						errMatch := strings.Contains(err.Error(), tc.expectedGetError)
+						if !errMatch {
+							e2e.Logf("[test #%d/%d]: config: %s, GET error: %v", i+1, len(testCases), testConfig, err)
+						}
+						return errMatch, nil
+					}
 					if err != nil {
-						e2e.Logf("client.Get(%q) failed: %v, retrying...", url, err)
+						e2e.Logf("[test #%d/%d]: config: %s, GET error: %v", i+1, len(testCases), testConfig, tc.statusCode, resp.StatusCode)
 						return false, nil
 					}
-					id := tc.routeHostPrefix + "-" + string(tc.routeType)
-					defer resp.Body.Close()
-					if !(resp.StatusCode == tc.expectedStatus && resp.Proto == tc.frontendProto) {
-						e2e.Logf("[%s] Response(status: %v, protocol: %q), Expected(status: %v, protocol: %q), retrying...", id, resp.StatusCode, resp.Proto, tc.expectedStatus, tc.frontendProto)
-						return false, nil
+					if resp.StatusCode != tc.statusCode {
+						e2e.Logf("[test #%d/%d]: config: %s, expected status: %v, actual status: %v", i+1, len(testCases), testConfig, tc.statusCode, resp.StatusCode)
 					}
-					body, err := ioutil.ReadAll(resp.Body)
-					if err != nil {
-						e2e.Logf("[%s] ReadAll(resp.Body) failed: %q, retrying...", id, err)
-						return false, nil
-					}
-					if !strings.Contains(string(body), tc.backendProto) {
-						e2e.Logf("[%s] backend protocol not matched; expected %q, got %q, retrying...", tc.backendProto, string(body))
-						return false, nil
-					}
-					return true, nil
-				})
-				o.Expect(err).NotTo(o.HaveOccurred())
+					return resp.StatusCode == tc.statusCode, nil
+				})).NotTo(o.HaveOccurred())
+
+				if tc.expectedGetError != "" {
+					continue
+				}
+
+				defer resp.Body.Close()
+				o.Expect(resp.StatusCode).To(o.Equal(tc.statusCode), testConfig)
+				o.Expect(resp.Proto).To(o.Equal(tc.frontendProto), testConfig)
+				body, err := ioutil.ReadAll(resp.Body)
+				o.Expect(err).NotTo(o.HaveOccurred(), testConfig)
+				o.Expect(string(body)).To(o.Equal(tc.backendProto), testConfig)
 			}
 		})
 	})
