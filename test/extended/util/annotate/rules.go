@@ -42,6 +42,8 @@ var (
 			`NetworkPolicy.*named port`, // not yet implemented
 			`enforce egress policy`,     // not support
 			`should proxy to cadvisor`,  // we don't expose cAdvisor port directly for security reasons
+			// k8s v.18 introduced IngressClass and is not supported: https://bugzilla.redhat.com/show_bug.cgi?id=1833583
+			`\[sig-network\] IngressClass \[Feature:Ingress\] should set default value on new IngressClass`,
 		},
 		// tests that rely on special configuration that we do not yet support
 		"[Disabled:SpecialConfig]": {
