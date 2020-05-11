@@ -13,7 +13,6 @@ import (
 	o "github.com/onsi/gomega"
 	"golang.org/x/net/http2"
 
-	routev1 "github.com/openshift/api/route/v1"
 	routeclientset "github.com/openshift/client-go/route/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -78,91 +77,66 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			e2e.ExpectNoError(oc.KubeFramework().WaitForPodRunningSlow("http2"))
 
 			testCases := []struct {
-				routeType         routev1.TLSTerminationType
-				routePrefix       string
+				route             string
 				frontendProto     string
 				backendProto      string
 				statusCode        int
 				useHTTP2Transport bool
 				expectedGetError  string
 			}{{
-				routeType:         routev1.TLSTerminationEdge,
-				routePrefix:       "http2-custom-cert",
+				route:             "http2-custom-cert-edge",
 				frontendProto:     "HTTP/2.0",
 				backendProto:      "HTTP/1.1",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: true,
 			}, {
-				routeType:         routev1.TLSTerminationReencrypt,
-				routePrefix:       "http2-custom-cert",
+				route:             "http2-custom-cert-reencrypt",
 				frontendProto:     "HTTP/2.0",
 				backendProto:      "HTTP/2.0",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: true,
 			}, {
-				routeType:         routev1.TLSTerminationPassthrough,
-				routePrefix:       "http2-custom-cert",
+				route:             "http2-passthrough",
 				frontendProto:     "HTTP/2.0",
 				backendProto:      "HTTP/2.0",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: true,
 			}, {
-				routeType:         routev1.TLSTerminationEdge,
-				routePrefix:       "http2-default-cert",
+				route:             "http2-default-cert-edge",
 				useHTTP2Transport: true,
 				expectedGetError:  `http2: unexpected ALPN protocol ""; want "h2"`,
 			}, {
-				routeType:         routev1.TLSTerminationReencrypt,
-				routePrefix:       "http2-default-cert",
+				route:             "http2-default-cert-reencrypt",
 				useHTTP2Transport: true,
 				expectedGetError:  `http2: unexpected ALPN protocol ""; want "h2"`,
 			}, {
-				routeType:         routev1.TLSTerminationPassthrough,
-				routePrefix:       "http2-default-cert",
-				frontendProto:     "HTTP/2.0",
-				backendProto:      "HTTP/2.0",
-				statusCode:        http.StatusOK,
-				useHTTP2Transport: true,
-			}, {
-				routeType:         routev1.TLSTerminationEdge,
-				routePrefix:       "http2-custom-cert",
+				route:             "http2-custom-cert-edge",
 				frontendProto:     "HTTP/1.1",
 				backendProto:      "HTTP/1.1",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: false,
 			}, {
-				routeType:         routev1.TLSTerminationReencrypt,
-				routePrefix:       "http2-custom-cert",
+				route:             "http2-custom-cert-reencrypt",
 				frontendProto:     "HTTP/1.1",
 				backendProto:      "HTTP/2.0", // reencrypt always has backend ALPN enabled
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: false,
 			}, {
-				routeType:         routev1.TLSTerminationPassthrough,
-				routePrefix:       "http2-custom-cert",
+				route:             "http2-passthrough",
 				frontendProto:     "HTTP/1.1",
 				backendProto:      "HTTP/1.1",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: false,
 			}, {
-				routeType:         routev1.TLSTerminationEdge,
-				routePrefix:       "http2-default-cert",
+				route:             "http2-default-cert-edge",
 				frontendProto:     "HTTP/1.1",
 				backendProto:      "HTTP/1.1",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: false,
 			}, {
-				routeType:         routev1.TLSTerminationReencrypt,
-				routePrefix:       "http2-default-cert",
+				route:             "http2-default-cert-reencrypt",
 				frontendProto:     "HTTP/1.1",
 				backendProto:      "HTTP/2.0", // reencrypt always has backend ALPN enabled
-				statusCode:        http.StatusOK,
-				useHTTP2Transport: false,
-			}, {
-				routeType:         routev1.TLSTerminationPassthrough,
-				routePrefix:       "http2-default-cert",
-				frontendProto:     "HTTP/1.1",
-				backendProto:      "HTTP/1.1",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: false,
 			}}
@@ -174,7 +148,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				// check readiness probe is accessible
 				urlTester := url.NewTester(oc.AdminKubeClient(), oc.KubeFramework().Namespace.Name).WithErrorPassthrough(true)
 				defer urlTester.Close()
-				hostname := getHostnameForRoute(oc, fmt.Sprintf("%s-%s", tc.routePrefix, tc.routeType))
+				hostname := getHostnameForRoute(oc, tc.route)
 				urlTester.Within(30*time.Second, url.Expect("GET", "https://"+hostname+"/healthz").Through(hostname).SkipTLSVerification().HasStatusCode(200))
 
 				var resp *http.Response
@@ -184,7 +158,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 					var err error
 					url := "https://" + hostname
 					resp, err = client.Get(url)
-					if err != nil && tc.expectedGetError != "" {
+					if err != nil && len(tc.expectedGetError) != 0 {
 						errMatch := strings.Contains(err.Error(), tc.expectedGetError)
 						if !errMatch {
 							e2e.Logf("[test #%d/%d]: config: %s, GET error: %v", i+1, len(testCases), testConfig, err)
@@ -194,6 +168,9 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 					if err != nil {
 						e2e.Logf("[test #%d/%d]: config: %s, GET error: %v", i+1, len(testCases), testConfig, err)
 						return false, nil // could be 503 if service not ready
+					}
+					if tc.statusCode == 0 {
+						return false, nil
 					}
 					if resp.StatusCode != tc.statusCode {
 						e2e.Logf("[test #%d/%d]: config: %s, expected status: %v, actual status: %v", i+1, len(testCases), testConfig, tc.statusCode, resp.StatusCode)

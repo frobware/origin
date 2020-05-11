@@ -238,10 +238,6 @@ objects:
     data.base64: |
 %s
 - apiVersion: v1
-  kind: ConfigMap
-  metadata:
-    name: serving-cert-http2
-- apiVersion: v1
   kind: Pod
   metadata:
     name: http2
@@ -271,7 +267,6 @@ objects:
         mountPath: /etc/serving-cert
       - name: workdir
         mountPath: /workdir
-      readOnly: true
     initContainers:
     - image: golang:1.14
       name: builder
@@ -302,8 +297,6 @@ objects:
     - name: cert
       secret:
         secretName: serving-cert-http2
-    - name: tmp
-      emptyDir: {}
     - name: workdir
       emptyDir: {}
 - apiVersion: route.openshift.io/v1
@@ -330,21 +323,6 @@ objects:
       targetPort: 8443
     tls:
       termination: reencrypt
-      insecureEdgeTerminationPolicy: Redirect
-    to:
-      kind: Service
-      name: http2
-      weight: 100
-    wildcardPolicy: None
-- apiVersion: route.openshift.io/v1
-  kind: Route
-  metadata:
-    name: http2-default-cert-passthrough
-  spec:
-    port:
-      targetPort: 8443
-    tls:
-      termination: passthrough
       insecureEdgeTerminationPolicy: Redirect
     to:
       kind: Service
@@ -392,7 +370,7 @@ objects:
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
-    name: http2-custom-cert-passthrough
+    name: http2-passthrough
   spec:
     port:
       targetPort: 8443
