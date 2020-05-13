@@ -14,6 +14,14 @@ import (
 	"time"
 )
 
+type Config struct {
+	Organization          []string
+	CommonName            string
+	SubjectAlternateNames []string
+	NotBefore             time.Time
+	NotAfter              time.Time
+}
+
 // MarshalKeyToDERFormat converts the key to a string representation
 // (SEC 1, ASN.1 DER form) suitable for dropping into a route's TLS
 // key stanza.
@@ -47,7 +55,7 @@ func MarshalCertToPEMString(derBytes []byte) (string, error) {
 // GenerateKeyPair creates cert and key with optional subject
 // alternate names. Certificate is valid when it is invoked and
 // expires in 100 years.
-func GenerateKeyPair(notBefore, notAfter time.Time, subjectAltNames ...string) ([]byte, *ecdsa.PrivateKey, error) {
+func GenerateKeyPair(cfg Config) ([]byte, *ecdsa.PrivateKey, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
@@ -62,11 +70,11 @@ func GenerateKeyPair(notBefore, notAfter time.Time, subjectAltNames ...string) (
 	rootTemplate := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"Red Hat"},
+			Organization: []string{"Cert Gen Co"},
 			CommonName:   "Root CA",
 		},
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
+		NotBefore:             cfg.NotBefore,
+		NotAfter:              cfg.NotAfter,
 		KeyUsage:              x509.KeyUsageCertSign,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
@@ -91,18 +99,18 @@ func GenerateKeyPair(notBefore, notAfter time.Time, subjectAltNames ...string) (
 	leafCertTemplate := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"Red Hat"},
-			CommonName:   "test_cert",
+			Organization: cfg.Organization,
+			CommonName:   cfg.CommonName,
 		},
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
+		NotBefore:             cfg.NotBefore,
+		NotAfter:              cfg.NotAfter,
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 		IsCA:                  false,
 	}
 
-	for _, h := range subjectAltNames {
+	for _, h := range cfg.SubjectAlternateNames {
 		if ip := net.ParseIP(h); ip != nil {
 			leafCertTemplate.IPAddresses = append(leafCertTemplate.IPAddresses, ip)
 		} else {

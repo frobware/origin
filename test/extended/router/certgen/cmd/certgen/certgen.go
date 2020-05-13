@@ -10,11 +10,17 @@ import (
 )
 
 func main() {
-	validFor := 100 * time.Hour * 24 * 365 // 100 years
 	notBefore := time.Now()
-	notAfter := notBefore.Add(validFor)
 
-	crt, key, err := certgen.GenerateKeyPair(notBefore, notAfter, flag.Args()...)
+	cfg := certgen.Config{
+		Organization:          []string{"Cert Gen Company"},
+		CommonName:            "testcert",
+		NotBefore:             notBefore,
+		NotAfter:              notBefore.Add(100 * time.Hour * 24 * 365), // 100 years
+		SubjectAlternateNames: flag.Args(),
+	}
+
+	crt, key, err := certgen.GenerateKeyPair(cfg)
 
 	if err != nil {
 		log.Fatalf("failed to generate key pair: %v", err)
@@ -30,5 +36,5 @@ func main() {
 		log.Fatalf("failed to marshal crt: %v", err)
 	}
 
-	fmt.Print(s1, "\n", s2)
+	fmt.Print(s1, s2)
 }
