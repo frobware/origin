@@ -1,7 +1,6 @@
 package router
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
@@ -13,14 +12,11 @@ import (
 	o "github.com/onsi/gomega"
 	"golang.org/x/net/http2"
 
-	routeclientset "github.com/openshift/client-go/route/clientset/versioned"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 
 	exutil "github.com/openshift/origin/test/extended/util"
-	"github.com/openshift/origin/test/extended/util/url"
 )
 
 const (
@@ -62,21 +58,17 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 	// hook
 	g.AfterEach(func() {
 		if g.CurrentGinkgoTestDescription().Failed {
-			client := routeclientset.NewForConfigOrDie(oc.AdminConfig()).RouteV1().Routes(oc.KubeFramework().Namespace.Name)
-			if routes, _ := client.List(context.Background(), metav1.ListOptions{}); routes != nil {
-				outputIngress(routes.Items...)
-			}
 			exutil.DumpPodLogsStartingWith("http2", oc)
+			exutil.DumpPodLogsStartingWithInNamespace("router", "openshift-ingress", oc.AsAdmin())
 		}
 	})
 
 	g.Describe("The HAProxy router", func() {
 		g.It("should pass the http2 tests", func() {
-			g.Skip("disabled for https://bugzilla.redhat.com/show_bug.cgi?id=1853711")
 			g.By(fmt.Sprintf("creating test fixture from a config file %q", configPath))
 			err := oc.Run("new-app").Args("-f", configPath).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
-			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.KubeFramework().Namespace.Name))
+			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.KubeFramework().Namespace.Name), "text fixture pods not running")
 
 			testCases := []struct {
 				route             string
@@ -147,19 +139,13 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				testConfig := fmt.Sprintf("%+v", tc)
 				e2e.Logf("[test #%d/%d]: config: %s", i+1, len(testCases), testConfig)
 
-				// check readiness probe is accessible
-				urlTester := url.NewTester(oc.AdminKubeClient(), oc.KubeFramework().Namespace.Name).WithErrorPassthrough(true)
-				defer urlTester.Close()
 				hostname := getHostnameForRoute(oc, tc.route)
-				urlTester.Within(30*time.Second, url.Expect("GET", "https://"+hostname+"/healthz").Through(hostname).SkipTLSVerification().HasStatusCode(200))
-
-				var resp *http.Response
 				client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
 
-				o.Expect(wait.Poll(time.Second, 30*time.Second, func() (bool, error) {
-					var err error
-					url := "https://" + hostname
-					resp, err = client.Get(url)
+				var resp *http.Response
+
+				o.Expect(wait.Poll(time.Second, 5*time.Minute, func() (bool, error) {
+					resp, err = client.Get("https://" + hostname)
 					if err != nil && len(tc.expectedGetError) != 0 {
 						errMatch := strings.Contains(err.Error(), tc.expectedGetError)
 						if !errMatch {
@@ -184,12 +170,13 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 					continue
 				}
 
-				o.Expect(resp.StatusCode).To(o.Equal(tc.statusCode), testConfig)
-				o.Expect(resp.Proto).To(o.Equal(tc.frontendProto), testConfig)
+				o.Expect(resp).ToNot(o.BeNil(), "response was nil")
+				o.Expect(resp.StatusCode).To(o.Equal(tc.statusCode), testConfig, "HTTP response code not matched")
+				o.Expect(resp.Proto).To(o.Equal(tc.frontendProto), testConfig, "protocol not matched")
 				body, err := ioutil.ReadAll(resp.Body)
-				o.Expect(err).NotTo(o.HaveOccurred(), testConfig)
-				o.Expect(string(body)).To(o.Equal(tc.backendProto), testConfig)
-				o.Expect(resp.Body.Close()).NotTo(o.HaveOccurred())
+				o.Expect(err).NotTo(o.HaveOccurred(), "failed to read the response body")
+				o.Expect(string(body)).To(o.Equal(tc.backendProto), "response body content not matched")
+				o.Expect(resp.Body.Close()).NotTo(o.HaveOccurred(), "failed to close response body")
 			}
 		})
 	})
