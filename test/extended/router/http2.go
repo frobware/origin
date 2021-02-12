@@ -78,9 +78,13 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			shardedDomain := "http2." + defaultDomain
 
 			// g.By(fmt.Sprintf("creating router shard from a config file %q", shardConfigPath))
-			configFile, err := oc.AsAdmin().Run("process").Args("-f", shardConfigPath, "-p", "NAME=http2", "NAMESPACE=openshift-ingress-operator", "DOMAIN="+shardedDomain).OutputToFile("http2config.json")
-			fmt.Println(configFile)
-			err = oc.AsAdmin().Run("create").Args("-f", configFile, "--namespace=openshift-ingress-operator").Execute()
+			shardConfigFile, err := oc.AsAdmin().Run("process").Args("-f", shardConfigPath, "-p", "NAME=http2", "NAMESPACE=openshift-ingress-operator", "DOMAIN="+shardedDomain).OutputToFile("http2config.json")
+
+			defer func() {
+				oc.AsAdmin().Run("delete").Args("-f", shardConfigFile, "--namespace=openshift-ingress-operator").Execute()
+			}()
+
+			err = oc.AsAdmin().Run("create").Args("-f", shardConfigFile, "--namespace=openshift-ingress-operator").Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "text fixture pods not running")
