@@ -453,6 +453,7 @@
 // test/extended/testdata/router/router-common.yaml
 // test/extended/testdata/router/router-config-manager.yaml
 // test/extended/testdata/router/router-grpc-interop.yaml
+// test/extended/testdata/router/router-h2shard.yaml
 // test/extended/testdata/router/router-h2spec.yaml
 // test/extended/testdata/router/router-http-echo-server.yaml
 // test/extended/testdata/router/router-http2.yaml
@@ -49956,6 +49957,50 @@ func testExtendedTestdataRouterRouterGrpcInteropYaml() (*asset, error) {
 	return a, nil
 }
 
+var _testExtendedTestdataRouterRouterH2shardYaml = []byte(`apiVersion: template.openshift.io/v1
+kind: Template
+parameters:
+- name: NAME
+- name: DOMAIN
+- name: NAMESPACE
+objects:
+- apiVersion: operator.openshift.io/v1
+  kind: IngressController
+  metadata:
+    name: ${NAME}
+    namespace: ${NAMESPACE}
+    annotations:
+      ingress.operator.openshift.io/default-enable-http2: "true"
+  spec:
+    replicas: 1
+    domain: ${DOMAIN}
+    endpointPublishingStrategy:
+      type: LoadBalancerService
+    nodePlacement:
+      nodeSelector:
+        matchLabels:
+          node-role.kubernetes.io/worker: ""
+    routeSelector:
+      matchLabels:
+        type: ${NAME}
+    terminationGracePeriodSeconds: 1
+`)
+
+func testExtendedTestdataRouterRouterH2shardYamlBytes() ([]byte, error) {
+	return _testExtendedTestdataRouterRouterH2shardYaml, nil
+}
+
+func testExtendedTestdataRouterRouterH2shardYaml() (*asset, error) {
+	bytes, err := testExtendedTestdataRouterRouterH2shardYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "test/extended/testdata/router/router-h2shard.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _testExtendedTestdataRouterRouterH2specYaml = []byte(`apiVersion: v1
 kind: Template
 parameters:
@@ -50374,7 +50419,7 @@ func testExtendedTestdataRouterRouterHttpEchoServerYaml() (*asset, error) {
 	return a, nil
 }
 
-var _testExtendedTestdataRouterRouterHttp2Yaml = []byte(`apiVersion: v1
+var _testExtendedTestdataRouterRouterHttp2Yaml = []byte(`apiVersion: template.openshift.io/v1
 kind: Template
 objects:
 - apiVersion: v1
@@ -50475,117 +50520,132 @@ objects:
         secretName: serving-cert-http2
     - name: workdir
       emptyDir: {}
-- apiVersion: route.openshift.io/v1
-  kind: Route
-  metadata:
-    name: http2-default-cert-edge
-  spec:
-    port:
-      targetPort: 8080
-    tls:
-      termination: edge
-      insecureEdgeTerminationPolicy: Redirect
-    to:
-      kind: Service
-      name: http2
-      weight: 100
-    wildcardPolicy: None
-- apiVersion: route.openshift.io/v1
-  kind: Route
-  metadata:
-    name: http2-default-cert-reencrypt
-  spec:
-    port:
-      targetPort: 8443
-    tls:
-      termination: reencrypt
-      insecureEdgeTerminationPolicy: Redirect
-    to:
-      kind: Service
-      name: http2
-      weight: 100
-    wildcardPolicy: None
-- apiVersion: route.openshift.io/v1
-  kind: Route
-  metadata:
-    name: http2-custom-cert-edge
-  spec:
-    port:
-      targetPort: 8080
-    tls:
-      termination: edge
-      insecureEdgeTerminationPolicy: Redirect
-      key: |-
-        -----BEGIN EC PRIVATE KEY-----
-        MHcCAQEEIAW+ecg2cZR47ItbI898N3nJduh9UJNv+b0cOwH/Z1BEoAoGCCqGSM49
-        AwEHoUQDQgAEx0/5sEgiUPFdcbd4dSllkul8s68RQ5WxIjfwWYMdfYLiLLqP1lkz
-        4UYpwAW/t63qBx3jRhPgkUxh5saJP9Qu5Q==
-        -----END EC PRIVATE KEY-----
-      certificate: |-
-        -----BEGIN CERTIFICATE-----
-        MIIBgTCCASagAwIBAgIRALutWdExjxX8fWljW+lcYbswCgYIKoZIzj0EAwIwJDEQ
-        MA4GA1UEChMHUmVkIEhhdDEQMA4GA1UEAxMHUm9vdCBDQTAgFw0yMDA1MTExMDU2
-        NThaGA8yMTIwMDQxNzEwNTY1OFowJjEQMA4GA1UEChMHUmVkIEhhdDESMBAGA1UE
-        AwwJdGVzdF9jZXJ0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEx0/5sEgiUPFd
-        cbd4dSllkul8s68RQ5WxIjfwWYMdfYLiLLqP1lkz4UYpwAW/t63qBx3jRhPgkUxh
-        5saJP9Qu5aM1MDMwDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMB
-        MAwGA1UdEwEB/wQCMAAwCgYIKoZIzj0EAwIDSQAwRgIhAOIx8885y8tX/Vv94UGx
-        hWC/O1Hzi15kOT0WQ/UKUMjMAiEA40uW9P6k+i1cDwgfBBMzgDFQa9GAb4FqM8Wr
-        PaUMdqg=
-        -----END CERTIFICATE-----
-    to:
-      kind: Service
-      name: http2
-      weight: 100
-    wildcardPolicy: None
-- apiVersion: route.openshift.io/v1
-  kind: Route
-  metadata:
-    name: http2-custom-cert-reencrypt
-  spec:
-    port:
-      targetPort: 8443
-    tls:
-      termination: reencrypt
-      insecureEdgeTerminationPolicy: Redirect
-      key: |-
-        -----BEGIN EC PRIVATE KEY-----
-        MHcCAQEEIBk5BXzGWoGiRD9726TFPcvKHuwNVBUfPBlbF5fISRFPoAoGCCqGSM49
-        AwEHoUQDQgAEjCp5jERwCaBpjhoaOxgD1DDaPwKkWu+a8mJLn9Cn9+LcSub05zPa
-        MQy0a+FkvZSyTA2y8a8/IMM1f2MQC6bATg==
-        -----END EC PRIVATE KEY-----
-      certificate: |-
-        -----BEGIN CERTIFICATE-----
-        MIIBgTCCASagAwIBAgIRAO2UsHGM2j+IZfxSG0KSSH0wCgYIKoZIzj0EAwIwJDEQ
-        MA4GA1UEChMHUmVkIEhhdDEQMA4GA1UEAxMHUm9vdCBDQTAgFw0yMDA1MTExMDU2
-        NThaGA8yMTIwMDQxNzEwNTY1OFowJjEQMA4GA1UEChMHUmVkIEhhdDESMBAGA1UE
-        AwwJdGVzdF9jZXJ0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEjCp5jERwCaBp
-        jhoaOxgD1DDaPwKkWu+a8mJLn9Cn9+LcSub05zPaMQy0a+FkvZSyTA2y8a8/IMM1
-        f2MQC6bATqM1MDMwDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMB
-        MAwGA1UdEwEB/wQCMAAwCgYIKoZIzj0EAwIDSQAwRgIhALwL+vTFS37a/R6RMeNN
-        fKKM6dOZeTSIVk6eGen6ZmZmAiEAhdLQwSu7ev/GrGwINF1rraoyrgiq4mFdPwHa
-        TctfSDo=
-        -----END CERTIFICATE-----
-    to:
-      kind: Service
-      name: http2
-      weight: 100
-    wildcardPolicy: None
-- apiVersion: route.openshift.io/v1
-  kind: Route
-  metadata:
-    name: http2-passthrough
-  spec:
-    port:
-      targetPort: 8443
-    tls:
-      termination: passthrough
-      insecureEdgeTerminationPolicy: Redirect
-    to:
-      kind: Service
-      name: http2
-      weight: 100
-    wildcardPolicy: None
+# - apiVersion: route.openshift.io/v1
+#   kind: Route
+#   metadata:
+#     labels:
+#       type: http2
+#     name: http2-default-cert-edge
+#   spec:
+#     host: http2-default-cert-edge.http2.apps.amcdermo-2021-02-12-0713.devcluster.openshift.com
+#     port:
+#       targetPort: 8080
+#     tls:
+#       termination: edge
+#       insecureEdgeTerminationPolicy: Redirect
+#     to:
+#       kind: Service
+#       name: http2
+#       weight: 100
+#     wildcardPolicy: None
+# - apiVersion: route.openshift.io/v1
+#   kind: Route
+#   metadata:
+#     labels:
+#       type: http2
+#     name: http2-default-cert-reencrypt
+#   spec:
+#     host: http2-default-cert-reencrypt.http2.apps.amcdermo-2021-02-12-0713.devcluster.openshift.com
+#     port:
+#       targetPort: 8443
+#     tls:
+#       termination: reencrypt
+#       insecureEdgeTerminationPolicy: Redirect
+#     to:
+#       kind: Service
+#       name: http2
+#       weight: 100
+#     wildcardPolicy: None
+# - apiVersion: route.openshift.io/v1
+#   kind: Route
+#   metadata:
+#     labels:
+#       type: http2
+#     name: http2-custom-cert-edge
+#   spec:
+#     host: http2-custom-cert-edge.http2.apps.amcdermo-2021-02-12-0713.devcluster.openshift.com
+#     port:
+#       targetPort: 8080
+#     tls:
+#       termination: edge
+#       insecureEdgeTerminationPolicy: Redirect
+#       key: |-
+#         -----BEGIN EC PRIVATE KEY-----
+#         MHcCAQEEIAW+ecg2cZR47ItbI898N3nJduh9UJNv+b0cOwH/Z1BEoAoGCCqGSM49
+#         AwEHoUQDQgAEx0/5sEgiUPFdcbd4dSllkul8s68RQ5WxIjfwWYMdfYLiLLqP1lkz
+#         4UYpwAW/t63qBx3jRhPgkUxh5saJP9Qu5Q==
+#         -----END EC PRIVATE KEY-----
+#       certificate: |-
+#         -----BEGIN CERTIFICATE-----
+#         MIIBgTCCASagAwIBAgIRALutWdExjxX8fWljW+lcYbswCgYIKoZIzj0EAwIwJDEQ
+#         MA4GA1UEChMHUmVkIEhhdDEQMA4GA1UEAxMHUm9vdCBDQTAgFw0yMDA1MTExMDU2
+#         NThaGA8yMTIwMDQxNzEwNTY1OFowJjEQMA4GA1UEChMHUmVkIEhhdDESMBAGA1UE
+#         AwwJdGVzdF9jZXJ0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEx0/5sEgiUPFd
+#         cbd4dSllkul8s68RQ5WxIjfwWYMdfYLiLLqP1lkz4UYpwAW/t63qBx3jRhPgkUxh
+#         5saJP9Qu5aM1MDMwDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMB
+#         MAwGA1UdEwEB/wQCMAAwCgYIKoZIzj0EAwIDSQAwRgIhAOIx8885y8tX/Vv94UGx
+#         hWC/O1Hzi15kOT0WQ/UKUMjMAiEA40uW9P6k+i1cDwgfBBMzgDFQa9GAb4FqM8Wr
+#         PaUMdqg=
+#         -----END CERTIFICATE-----
+#     to:
+#       kind: Service
+#       name: http2
+#       weight: 100
+#     wildcardPolicy: None
+# - apiVersion: route.openshift.io/v1
+#   kind: Route
+#   metadata:
+#     labels:
+#       type: http2
+#     name: http2-custom-cert-reencrypt
+#   spec:
+#     host: http2-custom-cert-reencrypt.http2.apps.amcdermo-2021-02-12-0713.devcluster.openshift.com
+#     port:
+#       targetPort: 8443
+#     tls:
+#       termination: reencrypt
+#       insecureEdgeTerminationPolicy: Redirect
+#       key: |-
+#         -----BEGIN EC PRIVATE KEY-----
+#         MHcCAQEEIBk5BXzGWoGiRD9726TFPcvKHuwNVBUfPBlbF5fISRFPoAoGCCqGSM49
+#         AwEHoUQDQgAEjCp5jERwCaBpjhoaOxgD1DDaPwKkWu+a8mJLn9Cn9+LcSub05zPa
+#         MQy0a+FkvZSyTA2y8a8/IMM1f2MQC6bATg==
+#         -----END EC PRIVATE KEY-----
+#       certificate: |-
+#         -----BEGIN CERTIFICATE-----
+#         MIIBgTCCASagAwIBAgIRAO2UsHGM2j+IZfxSG0KSSH0wCgYIKoZIzj0EAwIwJDEQ
+#         MA4GA1UEChMHUmVkIEhhdDEQMA4GA1UEAxMHUm9vdCBDQTAgFw0yMDA1MTExMDU2
+#         NThaGA8yMTIwMDQxNzEwNTY1OFowJjEQMA4GA1UEChMHUmVkIEhhdDESMBAGA1UE
+#         AwwJdGVzdF9jZXJ0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEjCp5jERwCaBp
+#         jhoaOxgD1DDaPwKkWu+a8mJLn9Cn9+LcSub05zPaMQy0a+FkvZSyTA2y8a8/IMM1
+#         f2MQC6bATqM1MDMwDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMB
+#         MAwGA1UdEwEB/wQCMAAwCgYIKoZIzj0EAwIDSQAwRgIhALwL+vTFS37a/R6RMeNN
+#         fKKM6dOZeTSIVk6eGen6ZmZmAiEAhdLQwSu7ev/GrGwINF1rraoyrgiq4mFdPwHa
+#         TctfSDo=
+#         -----END CERTIFICATE-----
+#     to:
+#       kind: Service
+#       name: http2
+#       weight: 100
+#     wildcardPolicy: None
+# - apiVersion: route.openshift.io/v1
+#   kind: Route
+#   metadata:
+#     labels:
+#       type: http2
+#     name: http2-passthrough
+#   spec:
+#     host: http2-passthrough.http2.apps.amcdermo-2021-02-12-0713.devcluster.openshift.com
+#     port:
+#       targetPort: 8443
+#     tls:
+#       termination: passthrough
+#       insecureEdgeTerminationPolicy: Redirect
+#     to:
+#       kind: Service
+#       name: http2
+#       weight: 100
+#     wildcardPolicy: None
 `)
 
 func testExtendedTestdataRouterRouterHttp2YamlBytes() ([]byte, error) {
@@ -53981,6 +54041,7 @@ var _bindata = map[string]func() (*asset, error){
 	"test/extended/testdata/router/router-common.yaml":                                                       testExtendedTestdataRouterRouterCommonYaml,
 	"test/extended/testdata/router/router-config-manager.yaml":                                               testExtendedTestdataRouterRouterConfigManagerYaml,
 	"test/extended/testdata/router/router-grpc-interop.yaml":                                                 testExtendedTestdataRouterRouterGrpcInteropYaml,
+	"test/extended/testdata/router/router-h2shard.yaml":                                                      testExtendedTestdataRouterRouterH2shardYaml,
 	"test/extended/testdata/router/router-h2spec.yaml":                                                       testExtendedTestdataRouterRouterH2specYaml,
 	"test/extended/testdata/router/router-http-echo-server.yaml":                                             testExtendedTestdataRouterRouterHttpEchoServerYaml,
 	"test/extended/testdata/router/router-http2.yaml":                                                        testExtendedTestdataRouterRouterHttp2Yaml,
@@ -54729,6 +54790,7 @@ var _bintree = &bintree{nil, map[string]*bintree{
 					"router-common.yaml":           {testExtendedTestdataRouterRouterCommonYaml, map[string]*bintree{}},
 					"router-config-manager.yaml":   {testExtendedTestdataRouterRouterConfigManagerYaml, map[string]*bintree{}},
 					"router-grpc-interop.yaml":     {testExtendedTestdataRouterRouterGrpcInteropYaml, map[string]*bintree{}},
+					"router-h2shard.yaml":          {testExtendedTestdataRouterRouterH2shardYaml, map[string]*bintree{}},
 					"router-h2spec.yaml":           {testExtendedTestdataRouterRouterH2specYaml, map[string]*bintree{}},
 					"router-http-echo-server.yaml": {testExtendedTestdataRouterRouterHttpEchoServerYaml, map[string]*bintree{}},
 					"router-http2.yaml":            {testExtendedTestdataRouterRouterHttp2Yaml, map[string]*bintree{}},
