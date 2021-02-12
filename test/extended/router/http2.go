@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
@@ -12,6 +13,7 @@ import (
 	o "github.com/onsi/gomega"
 	"golang.org/x/net/http2"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
@@ -50,6 +52,8 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 	defer g.GinkgoRecover()
 
 	var (
+		shardConfigPath = exutil.FixturePath("testdata", "router", "router-h2shard.yaml")
+
 		configPath = exutil.FixturePath("testdata", "router", "router-http2.yaml")
 		oc         = exutil.NewCLI("router-http2")
 	)
@@ -58,8 +62,8 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 	// hook
 	g.AfterEach(func() {
 		if g.CurrentGinkgoTestDescription().Failed {
-			exutil.DumpPodLogsStartingWith("http2", oc)
-			exutil.DumpPodLogsStartingWithInNamespace("router", "openshift-ingress", oc.AsAdmin())
+			//exutil.DumpPodLogsStartingWith("http2", oc)
+			//exutil.DumpPodLogsStartingWithInNamespace("router", oc.Namespace(), oc.AsAdmin())
 		}
 	})
 
@@ -68,7 +72,18 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			g.By(fmt.Sprintf("creating test fixture from a config file %q", configPath))
 			err := oc.Run("new-app").Args("-f", configPath).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
-			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.KubeFramework().Namespace.Name), "text fixture pods not running")
+
+			defaultDomain, err := getDefaultIngressClusterDomainName(oc, 5*time.Minute)
+			o.Expect(err).NotTo(o.HaveOccurred(), "failed to find default domain name")
+			shardedDomain := "http2." + defaultDomain
+
+			// g.By(fmt.Sprintf("creating router shard from a config file %q", shardConfigPath))
+			configFile, err := oc.AsAdmin().Run("process").Args("-f", shardConfigPath, "-p", "NAME=http2", "NAMESPACE=openshift-ingress-operator", "DOMAIN="+shardedDomain).OutputToFile("http2config.json")
+			fmt.Println(configFile)
+			err = oc.AsAdmin().Run("create").Args("-f", configFile, "--namespace=openshift-ingress-operator").Execute()
+			o.Expect(err).NotTo(o.HaveOccurred())
+
+			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "text fixture pods not running")
 
 			testCases := []struct {
 				route             string
@@ -139,12 +154,13 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				testConfig := fmt.Sprintf("%+v", tc)
 				e2e.Logf("[test #%d/%d]: config: %s", i+1, len(testCases), testConfig)
 
-				hostname := getHostnameForRoute(oc, tc.route)
-				client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
+				// hostname := getHostnameForRoute(oc, tc.route)
+				hostname := tc.route + "." + shardedDomain
 
 				var resp *http.Response
 
 				o.Expect(wait.Poll(time.Second, 5*time.Minute, func() (bool, error) {
+					client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
 					resp, err = client.Get("https://" + hostname)
 					if err != nil && len(tc.expectedGetError) != 0 {
 						errMatch := strings.Contains(err.Error(), tc.expectedGetError)
@@ -181,3 +197,21 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 		})
 	})
 })
+
+func getDefaultIngressClusterDomainName(oc *exutil.CLI, timeout time.Duration) (string, error) {
+	var domain string
+
+	if err := wait.PollImmediate(time.Second, timeout, func() (bool, error) {
+		ingress, err := oc.AdminConfigClient().ConfigV1().Ingresses().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		if err != nil {
+			e2e.Logf("Get ingresses.config/cluster failed: %v, retrying...", err)
+			return false, nil
+		}
+		domain = ingress.Spec.Domain
+		return true, nil
+	}); err != nil {
+		return "", err
+	}
+
+	return domain, nil
+}
