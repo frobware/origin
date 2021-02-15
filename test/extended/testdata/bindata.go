@@ -453,6 +453,7 @@
 // test/extended/testdata/router/router-common.yaml
 // test/extended/testdata/router/router-config-manager.yaml
 // test/extended/testdata/router/router-grpc-interop.yaml
+// test/extended/testdata/router/router-h2shard.yaml
 // test/extended/testdata/router/router-h2spec.yaml
 // test/extended/testdata/router/router-http-echo-server.yaml
 // test/extended/testdata/router/router-http2.yaml
@@ -49956,6 +49957,50 @@ func testExtendedTestdataRouterRouterGrpcInteropYaml() (*asset, error) {
 	return a, nil
 }
 
+var _testExtendedTestdataRouterRouterH2shardYaml = []byte(`apiVersion: template.openshift.io/v1
+kind: Template
+parameters:
+- name: NAME
+- name: DOMAIN
+- name: NAMESPACE
+objects:
+- apiVersion: operator.openshift.io/v1
+  kind: IngressController
+  metadata:
+    name: ${NAME}
+    namespace: ${NAMESPACE}
+    annotations:
+      ingress.operator.openshift.io/default-enable-http2: "true"
+  spec:
+    replicas: 1
+    domain: ${DOMAIN}
+    endpointPublishingStrategy:
+      type: LoadBalancerService
+    nodePlacement:
+      nodeSelector:
+        matchLabels:
+          node-role.kubernetes.io/worker: ""
+    routeSelector:
+      matchLabels:
+        type: ${NAME}
+    terminationGracePeriodSeconds: 1
+`)
+
+func testExtendedTestdataRouterRouterH2shardYamlBytes() ([]byte, error) {
+	return _testExtendedTestdataRouterRouterH2shardYaml, nil
+}
+
+func testExtendedTestdataRouterRouterH2shardYaml() (*asset, error) {
+	bytes, err := testExtendedTestdataRouterRouterH2shardYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "test/extended/testdata/router/router-h2shard.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _testExtendedTestdataRouterRouterH2specYaml = []byte(`apiVersion: v1
 kind: Template
 parameters:
@@ -50374,7 +50419,7 @@ func testExtendedTestdataRouterRouterHttpEchoServerYaml() (*asset, error) {
 	return a, nil
 }
 
-var _testExtendedTestdataRouterRouterHttp2Yaml = []byte(`apiVersion: v1
+var _testExtendedTestdataRouterRouterHttp2Yaml = []byte(`apiVersion: template.openshift.io/v1
 kind: Template
 objects:
 - apiVersion: v1
@@ -50480,6 +50525,7 @@ objects:
   metadata:
     name: http2-default-cert-edge
   spec:
+    host: http2-default-cert-edge.http2.apps.amcdermo-2021-02-12-0713.devcluster.openshift.com
     port:
       targetPort: 8080
     tls:
@@ -50495,6 +50541,7 @@ objects:
   metadata:
     name: http2-default-cert-reencrypt
   spec:
+    host: http2-default-cert-reencrypt.http2.apps.amcdermo-2021-02-12-0713.devcluster.openshift.com
     port:
       targetPort: 8443
     tls:
@@ -50510,6 +50557,7 @@ objects:
   metadata:
     name: http2-custom-cert-edge
   spec:
+    host: http2-custom-cert-edge.http2.apps.amcdermo-2021-02-12-0713.devcluster.openshift.com
     port:
       targetPort: 8080
     tls:
@@ -50543,6 +50591,7 @@ objects:
   metadata:
     name: http2-custom-cert-reencrypt
   spec:
+    host: http2-custom-cert-reencrypt.http2.apps.amcdermo-2021-02-12-0713.devcluster.openshift.com
     port:
       targetPort: 8443
     tls:
@@ -50576,6 +50625,7 @@ objects:
   metadata:
     name: http2-passthrough
   spec:
+    host: http2-passthrough.http2.apps.amcdermo-2021-02-12-0713.devcluster.openshift.com
     port:
       targetPort: 8443
     tls:
@@ -53981,6 +54031,7 @@ var _bindata = map[string]func() (*asset, error){
 	"test/extended/testdata/router/router-common.yaml":                                                       testExtendedTestdataRouterRouterCommonYaml,
 	"test/extended/testdata/router/router-config-manager.yaml":                                               testExtendedTestdataRouterRouterConfigManagerYaml,
 	"test/extended/testdata/router/router-grpc-interop.yaml":                                                 testExtendedTestdataRouterRouterGrpcInteropYaml,
+	"test/extended/testdata/router/router-h2shard.yaml":                                                      testExtendedTestdataRouterRouterH2shardYaml,
 	"test/extended/testdata/router/router-h2spec.yaml":                                                       testExtendedTestdataRouterRouterH2specYaml,
 	"test/extended/testdata/router/router-http-echo-server.yaml":                                             testExtendedTestdataRouterRouterHttpEchoServerYaml,
 	"test/extended/testdata/router/router-http2.yaml":                                                        testExtendedTestdataRouterRouterHttp2Yaml,
@@ -54729,6 +54780,7 @@ var _bintree = &bintree{nil, map[string]*bintree{
 					"router-common.yaml":           {testExtendedTestdataRouterRouterCommonYaml, map[string]*bintree{}},
 					"router-config-manager.yaml":   {testExtendedTestdataRouterRouterConfigManagerYaml, map[string]*bintree{}},
 					"router-grpc-interop.yaml":     {testExtendedTestdataRouterRouterGrpcInteropYaml, map[string]*bintree{}},
+					"router-h2shard.yaml":          {testExtendedTestdataRouterRouterH2shardYaml, map[string]*bintree{}},
 					"router-h2spec.yaml":           {testExtendedTestdataRouterRouterH2specYaml, map[string]*bintree{}},
 					"router-http-echo-server.yaml": {testExtendedTestdataRouterRouterHttpEchoServerYaml, map[string]*bintree{}},
 					"router-http2.yaml":            {testExtendedTestdataRouterRouterHttp2Yaml, map[string]*bintree{}},

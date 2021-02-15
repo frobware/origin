@@ -77,19 +77,18 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			defaultDomain, err := getDefaultIngressClusterDomainName(oc, 5*time.Minute)
 			o.Expect(err).NotTo(o.HaveOccurred(), "failed to find default domain name")
 
-			http2Subdomain := strings.ReplaceAll(oc.Namespace(), "e2e-test-router-", "")
-			o.Expect(http2Subdomain).ShouldNot(o.BeEmpty())
-			http2Domain := http2Subdomain + "." + defaultDomain
+			shardName := strings.ReplaceAll(oc.Namespace(), "e2e-test-router-", "")
+			o.Expect(shardName).ShouldNot(o.BeEmpty())
+			http2Domain := shardName + "." + defaultDomain
 
-			g.By(fmt.Sprintf("creating router shard %q from a config file %q", http2Subdomain, shardConfigPath))
-			shardConfigFile, err := oc.AsAdmin().Run("process").Args("-f", shardConfigPath, "-p", fmt.Sprintf("NAME=%v", http2Subdomain), "NAMESPACE=openshift-ingress-operator", "DOMAIN="+http2Domain).OutputToFile("http2config.json")
+			g.By(fmt.Sprintf("creating router shard %q from a config file %q", shardName, shardConfigPath))
+			routerShardConfig, err := oc.AsAdmin().Run("process").Args("-f", shardConfigPath, "-p", fmt.Sprintf("NAME=%v", shardName), "NAMESPACE=openshift-ingress-operator", "DOMAIN="+http2Domain).OutputToFile("http2config.json")
 
 			defer func() {
-				// Always attemtp tp clean up ingresscontroller shard
-				oc.AsAdmin().Run("delete").Args("-f", shardConfigFile, "--namespace=openshift-ingress-operator").Execute()
+				oc.AsAdmin().Run("delete").Args("-f", routerShardConfig, "--namespace=openshift-ingress-operator").Execute()
 			}()
 
-			err = oc.AsAdmin().Run("create").Args("-f", shardConfigFile, "--namespace=openshift-ingress-operator").Execute()
+			err = oc.AsAdmin().Run("create").Args("-f", routerShardConfig, "--namespace=openshift-ingress-operator").Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "text fixture pods not running")
@@ -160,8 +159,9 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				useHTTP2Transport: false,
 			}}
 
+			// Recreate routes based on shard name
 			for i := range testCases {
-				route, err := recreateRouteWithHost(oc, testCases[i].routeName, testCases[i].routeName+"."+http2Domain, 5*time.Minute)
+				route, err := recreateRouteWithHost(oc, testCases[i].routeName, testCases[i].routeName+"."+http2Domain, shardName, 3*time.Minute)
 				o.Expect(err).NotTo(o.HaveOccurred())
 				testCases[i].route = route
 				e2e.Logf("recreated route %q with host=%q", testCases[i].route.Name, testCases[i].route.Spec.Host)
@@ -249,7 +249,7 @@ func getDefaultIngressClusterDomainName(oc *exutil.CLI, timeout time.Duration) (
 	return domain, nil
 }
 
-func recreateRouteWithHost(oc *exutil.CLI, routeName, host string, timeout time.Duration) (*v1.Route, error) {
+func recreateRouteWithHost(oc *exutil.CLI, routeName, host, shardName string, timeout time.Duration) (*v1.Route, error) {
 	var newRoute *v1.Route
 
 	err := wait.PollImmediate(time.Second, timeout, func() (bool, error) {
@@ -273,8 +273,7 @@ func recreateRouteWithHost(oc *exutil.CLI, routeName, host string, timeout time.
 		// Metadata
 		newRoute.Name = existingRoute.Name
 		newRoute.Namespace = existingRoute.Namespace
-		newRoute.Labels = existingRoute.Labels
-		newRoute.Annotations = existingRoute.Annotations
+		newRoute.Labels = map[string]string{"type": shardName}
 
 		// Spec
 		existingRoute.Spec.DeepCopyInto(&newRoute.Spec)
