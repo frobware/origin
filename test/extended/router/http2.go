@@ -94,7 +94,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "text fixture pods not running")
 
 			testCases := []struct {
-				route             *v1.Route
+				route             *v1.Route // computed
 				routeName         string
 				frontendProto     string
 				backendProto      string
@@ -167,11 +167,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				e2e.Logf("recreated route %q with host=%q", testCases[i].route.Name, testCases[i].route.Spec.Host)
 			}
 
-			for i, tc := range testCases {
-				if i > 0 {
-					break
-				}
-
+			for _, tc := range testCases {
 				err := wait.PollImmediate(3*time.Second, 5*time.Minute, func() (bool, error) {
 					addrs, err := net.LookupHost(tc.route.Spec.Host)
 					if err != nil {
@@ -185,10 +181,6 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			}
 
 			for i, tc := range testCases {
-				if i > 0 {
-					break
-				}
-
 				testConfig := fmt.Sprintf("%+v", tc)
 				e2e.Logf("[test #%d/%d]: config: %s", i+1, len(testCases), tc.routeName)
 
@@ -205,13 +197,13 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 						return errMatch, nil
 					}
 					if err != nil {
-						e2e.Logf("[BBB test #%d/%d]: config: %s, GET error: %v, resp=%+v", i+1, len(testCases), tc.routeName, err, resp)
+						e2e.Logf("[test #%d/%d]: config: %s, GET error: %v, resp=%+v", i+1, len(testCases), tc.routeName, err, resp)
 						return false, nil // could be 503 if service not ready
 					}
 					if tc.statusCode == 0 {
 						return false, nil
 					}
-					e2e.Logf("[DDD test #%d/%d]: config: %s, expected status: %v, actual status: %v", i+1, len(testCases), tc.routeName, tc.statusCode, resp.StatusCode)
+					e2e.Logf("[test #%d/%d]: config: %s, expected status: %v, actual status: %v", i+1, len(testCases), tc.routeName, tc.statusCode, resp.StatusCode)
 					return resp.StatusCode == tc.statusCode, nil
 				})).NotTo(o.HaveOccurred())
 
