@@ -10,9 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/util/intstr"
-
-	"github.com/davecgh/go-spew/spew"
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 	"golang.org/x/net/http2"
@@ -30,28 +27,6 @@ const (
 	// http2ClientGetTimeout specifies the time limit for requests
 	// made by the HTTP Client.
 	http2ClientTimeout = 1 * time.Minute
-
-	tlsKey = `
------BEGIN EC PRIVATE KEY-----
-MHcCAQEEIFTS3l3jU0kF0cQ27MTn+a27Oz1CMr5gSnDQQwZ3BI0moAoGCCqGSM49
-AwEHoUQDQgAE0XRkp541S/i1bBYEtl/xWsKHDtmuFu7X1rIQiRAU4SB43B52iDxJ
-V5P5usDcYPghidR7m0hVj6s5iMskxwLr6g==
------END EC PRIVATE KEY-----
-`
-
-	tlsCert = `
------BEGIN CERTIFICATE-----
-MIIBizCCATGgAwIBAgIQJN1GzcsQZOXK7xqks+2aijAKBggqhkjOPQQDAjAoMRQw
-EgYDVQQKEwtDZXJ0IEdlbiBDbzEQMA4GA1UEAxMHUm9vdCBDQTAgFw0yMDA1MTgw
-OTU3MjNaGA8yMTIwMDQyNDA5NTcyM1owLjEZMBcGA1UEChMQQ2VydCBHZW4gQ29t
-cGFueTERMA8GA1UEAxMIdGVzdGNlcnQwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNC
-AATRdGSnnjVL+LVsFgS2X/FawocO2a4W7tfWshCJEBThIHjcHnaIPElXk/m6wNxg
-+CGJ1HubSFWPqzmIyyTHAuvqozUwMzAOBgNVHQ8BAf8EBAMCBaAwEwYDVR0lBAww
-CgYIKwYBBQUHAwEwDAYDVR0TAQH/BAIwADAKBggqhkjOPQQDAgNIADBFAiBgjygk
-ycGFHUK+b3hdvylD3ftaRT/muv+FKuuMqNCHsAIhAPW1owpVKlLHC/NaApFW/d0f
-Gf2Mda0JAqYv0ehJUh7w
------END CERTIFICATE-----
-`
 )
 
 func makeHTTPClient(useHTTP2Transport bool, timeout time.Duration) *http.Client {
@@ -120,7 +95,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "text fixture pods not running")
 
 			testCases := []struct {
-				route             v1.Route
+				route             *v1.Route
 				routeName         string
 				frontendProto     string
 				backendProto      string
@@ -128,33 +103,6 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				useHTTP2Transport bool
 				expectedGetError  string
 			}{{
-				route: v1.Route{
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "Route",
-						APIVersion: "route.openshift.io/v1",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "http2-custom-cert-edge",
-						Namespace: oc.Namespace(),
-					},
-					Spec: v1.RouteSpec{
-						To: v1.RouteTargetReference{
-							Kind: "Service",
-							Name: "http2",
-						},
-						Port: &v1.RoutePort{
-							TargetPort: intstr.IntOrString{
-								IntVal: 8080,
-							},
-						},
-						TLS: &v1.TLSConfig{
-							Termination: v1.TLSTerminationEdge,
-							Certificate: tlsCert[1:],
-							Key:         tlsKey[1:],
-						},
-						WildcardPolicy: v1.WildcardPolicyNone,
-					},
-				},
 				routeName:         "http2-custom-cert-edge",
 				frontendProto:     "HTTP/2.0",
 				backendProto:      "HTTP/1.1",
@@ -213,20 +161,10 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			}}
 
 			for i := range testCases {
-				if i > 0 {
-					break
-				}
-
-				route := &testCases[i].route
-				route.Name = testCases[i].routeName
-				route.Spec.Host = testCases[i].routeName + "." + http2Domain
-				route.Labels = map[string]string{
-					"type": http2Subdomain,
-				}
-				spew.Dump(route)
-				_, err := oc.RouteClient().RouteV1().Routes(oc.Namespace()).Create(context.Background(), route.DeepCopy(), metav1.CreateOptions{})
+				route, err := recreateRouteWithHost(oc, testCases[i].routeName, testCases[i].routeName+"."+http2Domain, 5*time.Minute)
 				o.Expect(err).NotTo(o.HaveOccurred())
-				e2e.Logf("creaated route %q with host=%q", route.Name, route.Spec.Host)
+				testCases[i].route = route
+				e2e.Logf("recreated route %q with host=%q", testCases[i].route.Name, testCases[i].route.Spec.Host)
 			}
 
 			for i, tc := range testCases {
@@ -237,7 +175,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				err := wait.PollImmediate(3*time.Second, 5*time.Minute, func() (bool, error) {
 					addrs, err := net.LookupHost(tc.route.Spec.Host)
 					if err != nil {
-						e2e.Logf("lookup %q failed: %v, retrying...", tc.route.Spec.Host, err)
+						e2e.Logf("DNS lookup failed: %v, retrying...", err)
 						return false, nil
 					}
 					e2e.Logf("host %q now resolves as %+v", tc.route.Spec.Host, addrs)
@@ -256,7 +194,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 
 				var resp *http.Response
 
-				o.Expect(wait.Poll(3*time.Second, 15*time.Minute, func() (bool, error) {
+				o.Expect(wait.Poll(time.Second, 5*time.Minute, func() (bool, error) {
 					client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
 					resp, err = client.Get("https://" + tc.route.Spec.Host)
 					if err != nil && len(tc.expectedGetError) != 0 {
@@ -311,36 +249,45 @@ func getDefaultIngressClusterDomainName(oc *exutil.CLI, timeout time.Duration) (
 	return domain, nil
 }
 
-func replaceRoute(oc *exutil.CLI, routeName, host string, timeout time.Duration) (*v1.Route, error) {
-	var r *v1.Route
+func recreateRouteWithHost(oc *exutil.CLI, routeName, host string, timeout time.Duration) (*v1.Route, error) {
+	var newRoute *v1.Route
 
 	err := wait.PollImmediate(time.Second, timeout, func() (bool, error) {
-		e2e.Logf("updating route %q with host=%q", routeName, host)
-		route, err := oc.RouteClient().RouteV1().Routes(oc.Namespace()).Get(context.Background(), routeName, metav1.GetOptions{})
+		existingRoute, err := oc.RouteClient().RouteV1().Routes(oc.Namespace()).Get(context.Background(), routeName, metav1.GetOptions{})
 		if err != nil {
 			e2e.Logf("Error getting route %q: %v, retrying...", routeName, err)
 			return false, err
 		}
-
-		savedRoute := route.DeepCopy()
 
 		if err := oc.RouteClient().RouteV1().Routes(oc.Namespace()).Delete(context.Background(), routeName, metav1.DeleteOptions{}); err != nil {
 			e2e.Logf("Error deleting route %q: %v", routeName, err)
 			return true, err
 		}
 
-		route.Namespace = savedRoute.Namespace
-		savedRoute.Spec.Host = host
-		savedRoute.Status = v1.RouteStatus{}
+		newRoute = &v1.Route{}
 
-		if _, err = oc.RouteClient().RouteV1().Routes(oc.Namespace()).Create(context.Background(), savedRoute, metav1.CreateOptions{}); err != nil {
+		//  Type
+		newRoute.Kind = existingRoute.Kind
+		newRoute.APIVersion = existingRoute.APIVersion
+
+		// Metadata
+		newRoute.Name = existingRoute.Name
+		newRoute.Namespace = existingRoute.Namespace
+		newRoute.Labels = existingRoute.Labels
+		newRoute.Annotations = existingRoute.Annotations
+
+		// Spec
+		existingRoute.Spec.DeepCopyInto(&newRoute.Spec)
+		newRoute.Spec.Host = host
+
+		e2e.Logf("updating route %q with host=%q", routeName, host)
+		newRoute, err = oc.RouteClient().RouteV1().Routes(oc.Namespace()).Create(context.Background(), newRoute, metav1.CreateOptions{})
+		if err != nil {
 			e2e.Logf("Error creating route %q with host=%q: %v", routeName, host, err)
 			return true, err
 		}
-
-		r = savedRoute
 		return true, nil
 	})
 
-	return r, err
+	return newRoute, err
 }
