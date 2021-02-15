@@ -12,6 +12,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
+	"github.com/davecgh/go-spew/spew"
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 	"golang.org/x/net/http2"
@@ -79,9 +80,8 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 
 	var (
 		shardConfigPath = exutil.FixturePath("testdata", "router", "router-h2shard.yaml")
-
-		configPath = exutil.FixturePath("testdata", "router", "router-http2.yaml")
-		oc         = exutil.NewCLI("router-http2")
+		configPath      = exutil.FixturePath("testdata", "router", "router-http2.yaml")
+		oc              = exutil.NewCLI("router-http2")
 	)
 
 	// this hook must be registered before the framework namespace teardown
@@ -102,7 +102,8 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			defaultDomain, err := getDefaultIngressClusterDomainName(oc, 5*time.Minute)
 			o.Expect(err).NotTo(o.HaveOccurred(), "failed to find default domain name")
 
-			http2Subdomain := fmt.Sprintf("%v-%v", "http2", oc.Namespace())
+			http2Subdomain := strings.ReplaceAll(oc.Namespace(), "e2e-test-router-", "")
+			o.Expect(http2Subdomain).ShouldNot(o.BeEmpty())
 			http2Domain := http2Subdomain + "." + defaultDomain
 
 			g.By(fmt.Sprintf("creating router shard %q from a config file %q", http2Subdomain, shardConfigPath))
@@ -126,7 +127,6 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				statusCode        int
 				useHTTP2Transport bool
 				expectedGetError  string
-				host              string // computed
 			}{{
 				route: v1.Route{
 					TypeMeta: metav1.TypeMeta{
@@ -134,12 +134,13 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 						APIVersion: "route.openshift.io/v1",
 					},
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "http2-custom-cert-edge",
+						Name:      "http2-custom-cert-edge",
+						Namespace: oc.Namespace(),
 					},
 					Spec: v1.RouteSpec{
 						To: v1.RouteTargetReference{
 							Kind: "Service",
-							Name: "h2spec-haproxy",
+							Name: "http2",
 						},
 						Port: &v1.RoutePort{
 							TargetPort: intstr.IntOrString{
@@ -212,41 +213,41 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			}}
 
 			for i := range testCases {
-				if i > 1 {
+				if i > 0 {
 					break
 				}
 
 				route := &testCases[i].route
+				route.Name = testCases[i].routeName
 				route.Spec.Host = testCases[i].routeName + "." + http2Domain
 				route.Labels = map[string]string{
 					"type": http2Subdomain,
 				}
-				route, err = oc.RouteClient().RouteV1().Routes(oc.Namespace()).Create(context.Background(), &testCases[i].route, metav1.CreateOptions{})
+				spew.Dump(route)
+				_, err := oc.RouteClient().RouteV1().Routes(oc.Namespace()).Create(context.Background(), route.DeepCopy(), metav1.CreateOptions{})
 				o.Expect(err).NotTo(o.HaveOccurred())
-				e2e.Logf("creaated route %q with host=%q", testCases[i].route.Name, route.Spec.Host)
+				e2e.Logf("creaated route %q with host=%q", route.Name, route.Spec.Host)
 			}
 
-			return
-
 			for i, tc := range testCases {
-				if i > 1 {
+				if i > 0 {
 					break
 				}
 
 				err := wait.PollImmediate(3*time.Second, 5*time.Minute, func() (bool, error) {
-					addrs, err := net.LookupHost(tc.host)
+					addrs, err := net.LookupHost(tc.route.Spec.Host)
 					if err != nil {
-						e2e.Logf("lookup %q failed: %v, retrying...", tc.host, err)
+						e2e.Logf("lookup %q failed: %v, retrying...", tc.route.Spec.Host, err)
 						return false, nil
 					}
-					e2e.Logf("host %q now resolves as %+v", tc.host, addrs)
+					e2e.Logf("host %q now resolves as %+v", tc.route.Spec.Host, addrs)
 					return true, nil
 				})
 				o.Expect(err).NotTo(o.HaveOccurred())
 			}
 
 			for i, tc := range testCases {
-				if i > 1 {
+				if i > 0 {
 					break
 				}
 
@@ -255,9 +256,9 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 
 				var resp *http.Response
 
-				o.Expect(wait.Poll(time.Second, 5*time.Minute, func() (bool, error) {
+				o.Expect(wait.Poll(3*time.Second, 15*time.Minute, func() (bool, error) {
 					client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
-					resp, err = client.Get("https://" + tc.host)
+					resp, err = client.Get("https://" + tc.route.Spec.Host)
 					if err != nil && len(tc.expectedGetError) != 0 {
 						errMatch := strings.Contains(err.Error(), tc.expectedGetError)
 						if !errMatch {
@@ -266,15 +267,13 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 						return errMatch, nil
 					}
 					if err != nil {
-						e2e.Logf("[BBB test #%d/%d]: config: %s, GET error: %v", i+1, len(testCases), tc.routeName, err)
+						e2e.Logf("[BBB test #%d/%d]: config: %s, GET error: %v, resp=%+v", i+1, len(testCases), tc.routeName, err, resp)
 						return false, nil // could be 503 if service not ready
 					}
 					if tc.statusCode == 0 {
 						return false, nil
 					}
-					if resp.StatusCode != tc.statusCode {
-						e2e.Logf("[CCC test #%d/%d]: config: %s, expected status: %v, actual status: %v", i+1, len(testCases), tc.routeName, tc.statusCode, resp.StatusCode)
-					}
+					e2e.Logf("[DDD test #%d/%d]: config: %s, expected status: %v, actual status: %v", i+1, len(testCases), tc.routeName, tc.statusCode, resp.StatusCode)
 					return resp.StatusCode == tc.statusCode, nil
 				})).NotTo(o.HaveOccurred())
 
