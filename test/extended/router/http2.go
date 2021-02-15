@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -13,14 +14,13 @@ import (
 	o "github.com/onsi/gomega"
 	"golang.org/x/net/http2"
 
-	routeclientset "github.com/openshift/client-go/route/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 
+	v1 "github.com/openshift/api/route/v1"
 	exutil "github.com/openshift/origin/test/extended/util"
-	"github.com/openshift/origin/test/extended/util/url"
 )
 
 const (
@@ -54,128 +54,159 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 	defer g.GinkgoRecover()
 
 	var (
-		configPath = exutil.FixturePath("testdata", "router", "router-http2.yaml")
-		oc         = exutil.NewCLI("router-http2")
+		shardConfigPath = exutil.FixturePath("testdata", "router", "router-h2shard.yaml")
+		configPath      = exutil.FixturePath("testdata", "router", "router-http2.yaml")
+		oc              = exutil.NewCLI("router-http2")
 	)
 
 	// this hook must be registered before the framework namespace teardown
 	// hook
 	g.AfterEach(func() {
 		if g.CurrentGinkgoTestDescription().Failed {
-			client := routeclientset.NewForConfigOrDie(oc.AdminConfig()).RouteV1().Routes(oc.KubeFramework().Namespace.Name)
-			if routes, _ := client.List(context.Background(), metav1.ListOptions{}); routes != nil {
-				outputIngress(routes.Items...)
-			}
 			exutil.DumpPodLogsStartingWith("http2", oc)
+			exutil.DumpPodLogsStartingWithInNamespace("router", "openshift-ingress", oc.AsAdmin())
 		}
 	})
 
 	g.Describe("The HAProxy router", func() {
 		g.It("should pass the http2 tests", func() {
-			g.Skip("disabled for https://bugzilla.redhat.com/show_bug.cgi?id=1853711")
 			g.By(fmt.Sprintf("creating test fixture from a config file %q", configPath))
 			err := oc.Run("new-app").Args("-f", configPath).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
-			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.KubeFramework().Namespace.Name))
+			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "http2 backend server pod not running")
+
+			defaultDomain, err := getDefaultIngressClusterDomainName(oc, 5*time.Minute)
+			o.Expect(err).NotTo(o.HaveOccurred(), "failed to find default domain name")
+
+			shardName := strings.ReplaceAll(oc.Namespace(), "e2e-test-router-", "")
+			o.Expect(shardName).ShouldNot(o.BeEmpty())
+			http2Domain := shardName + "." + defaultDomain
+
+			g.By(fmt.Sprintf("creating router shard %q from a config file %q", shardName, shardConfigPath))
+			routerShardConfig, err := oc.AsAdmin().Run("process").Args("-f", shardConfigPath, "-p", fmt.Sprintf("NAME=%v", shardName), "NAMESPACE=openshift-ingress-operator", "DOMAIN="+http2Domain).OutputToFile("http2config.json")
+
+			defer func() {
+				oc.AsAdmin().Run("delete").Args("-f", routerShardConfig, "--namespace=openshift-ingress-operator").Execute()
+			}()
+
+			err = oc.AsAdmin().Run("create").Args("-f", routerShardConfig, "--namespace=openshift-ingress-operator").Execute()
+			o.Expect(err).NotTo(o.HaveOccurred())
 
 			testCases := []struct {
-				route             string
+				route             *v1.Route // computed
+				routeName         string
 				frontendProto     string
 				backendProto      string
 				statusCode        int
 				useHTTP2Transport bool
 				expectedGetError  string
 			}{{
-				route:             "http2-custom-cert-edge",
+				routeName:         "http2-custom-cert-edge",
 				frontendProto:     "HTTP/2.0",
 				backendProto:      "HTTP/1.1",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: true,
 			}, {
-				route:             "http2-custom-cert-reencrypt",
+				routeName:         "http2-custom-cert-reencrypt",
 				frontendProto:     "HTTP/2.0",
 				backendProto:      "HTTP/2.0",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: true,
 			}, {
-				route:             "http2-passthrough",
+				routeName:         "http2-passthrough",
 				frontendProto:     "HTTP/2.0",
 				backendProto:      "HTTP/2.0",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: true,
 			}, {
-				route:             "http2-default-cert-edge",
+				routeName:         "http2-default-cert-edge",
 				useHTTP2Transport: true,
 				expectedGetError:  `http2: unexpected ALPN protocol ""; want "h2"`,
 			}, {
-				route:             "http2-default-cert-reencrypt",
+				routeName:         "http2-default-cert-reencrypt",
 				useHTTP2Transport: true,
 				expectedGetError:  `http2: unexpected ALPN protocol ""; want "h2"`,
 			}, {
-				route:             "http2-custom-cert-edge",
+				routeName:         "http2-custom-cert-edge",
 				frontendProto:     "HTTP/1.1",
 				backendProto:      "HTTP/1.1",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: false,
 			}, {
-				route:             "http2-custom-cert-reencrypt",
+				routeName:         "http2-custom-cert-reencrypt",
 				frontendProto:     "HTTP/1.1",
 				backendProto:      "HTTP/2.0", // reencrypt always has backend ALPN enabled
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: false,
 			}, {
-				route:             "http2-passthrough",
+				routeName:         "http2-passthrough",
 				frontendProto:     "HTTP/1.1",
 				backendProto:      "HTTP/1.1",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: false,
 			}, {
-				route:             "http2-default-cert-edge",
+				routeName:         "http2-default-cert-edge",
 				frontendProto:     "HTTP/1.1",
 				backendProto:      "HTTP/1.1",
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: false,
 			}, {
-				route:             "http2-default-cert-reencrypt",
+				routeName:         "http2-default-cert-reencrypt",
 				frontendProto:     "HTTP/1.1",
 				backendProto:      "HTTP/2.0", // reencrypt always has backend ALPN enabled
 				statusCode:        http.StatusOK,
 				useHTTP2Transport: false,
 			}}
 
+			// Recreate routes based on shard name
+			for i := range testCases {
+				route, err := recreateRouteWithHost(oc, testCases[i].routeName, testCases[i].routeName+"."+http2Domain, shardName, 5*time.Minute)
+				o.Expect(err).NotTo(o.HaveOccurred())
+				testCases[i].route = route
+				e2e.Logf("recreated route %q with host=%q", testCases[i].route.Name, testCases[i].route.Spec.Host)
+			}
+
+			// If we cannot resolve then we're not going
+			// to make a connection, so assert that lookup
+			// succeeds for each route.
+			for _, tc := range testCases {
+				err := wait.PollImmediate(time.Second, 15*time.Minute, func() (bool, error) {
+					addrs, err := net.LookupHost(tc.route.Spec.Host)
+					if err != nil {
+						e2e.Logf("DNS lookup failed: %v, retrying...", err)
+						return false, nil
+					}
+					e2e.Logf("host %q now resolves as %+v", tc.route.Spec.Host, addrs)
+					return true, nil
+				})
+				o.Expect(err).NotTo(o.HaveOccurred())
+			}
+
 			for i, tc := range testCases {
 				testConfig := fmt.Sprintf("%+v", tc)
-				e2e.Logf("[test #%d/%d]: config: %s", i+1, len(testCases), testConfig)
-
-				// check readiness probe is accessible
-				urlTester := url.NewTester(oc.AdminKubeClient(), oc.KubeFramework().Namespace.Name).WithErrorPassthrough(true)
-				defer urlTester.Close()
-				hostname := getHostnameForRoute(oc, tc.route)
-				urlTester.Within(30*time.Second, url.Expect("GET", "https://"+hostname+"/healthz").Through(hostname).SkipTLSVerification().HasStatusCode(200))
+				e2e.Logf("[test #%d/%d]: route: %s", i+1, len(testCases), tc.routeName)
 
 				var resp *http.Response
-				client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
 
-				o.Expect(wait.Poll(time.Second, 30*time.Second, func() (bool, error) {
-					var err error
-					url := "https://" + hostname
-					resp, err = client.Get(url)
+				o.Expect(wait.Poll(time.Second, 15*time.Minute, func() (bool, error) {
+					client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
+					resp, err = client.Get("https://" + tc.route.Spec.Host)
 					if err != nil && len(tc.expectedGetError) != 0 {
 						errMatch := strings.Contains(err.Error(), tc.expectedGetError)
 						if !errMatch {
-							e2e.Logf("[test #%d/%d]: config: %s, GET error: %v", i+1, len(testCases), testConfig, err)
+							e2e.Logf("[test #%d/%d]: route: %s, GET error: %v, retrying...", i+1, len(testCases), tc.routeName, err)
 						}
 						return errMatch, nil
 					}
 					if err != nil {
-						e2e.Logf("[test #%d/%d]: config: %s, GET error: %v", i+1, len(testCases), testConfig, err)
+						e2e.Logf("[test #%d/%d]: route: %s, GET error: %v, retrying...", i+1, len(testCases), tc.routeName, err)
 						return false, nil // could be 503 if service not ready
 					}
 					if tc.statusCode == 0 {
 						return false, nil
 					}
 					if resp.StatusCode != tc.statusCode {
-						e2e.Logf("[test #%d/%d]: config: %s, expected status: %v, actual status: %v", i+1, len(testCases), testConfig, tc.statusCode, resp.StatusCode)
+						e2e.Logf("[test #%d/%d]: route: %s, expected status: %v, actual status: %v, retrying...", i+1, len(testCases), tc.routeName, tc.statusCode, resp.StatusCode)
 					}
 					return resp.StatusCode == tc.statusCode, nil
 				})).NotTo(o.HaveOccurred())
@@ -184,13 +215,74 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 					continue
 				}
 
-				o.Expect(resp.StatusCode).To(o.Equal(tc.statusCode), testConfig)
-				o.Expect(resp.Proto).To(o.Equal(tc.frontendProto), testConfig)
+				o.Expect(resp).ToNot(o.BeNil(), "response was nil")
+				o.Expect(resp.StatusCode).To(o.Equal(tc.statusCode), testConfig, "HTTP response code not matched")
+				o.Expect(resp.Proto).To(o.Equal(tc.frontendProto), testConfig, "protocol not matched")
 				body, err := ioutil.ReadAll(resp.Body)
-				o.Expect(err).NotTo(o.HaveOccurred(), testConfig)
-				o.Expect(string(body)).To(o.Equal(tc.backendProto), testConfig)
-				o.Expect(resp.Body.Close()).NotTo(o.HaveOccurred())
+				o.Expect(err).NotTo(o.HaveOccurred(), "failed to read the response body")
+				o.Expect(string(body)).To(o.Equal(tc.backendProto), "response body content not matched")
+				o.Expect(resp.Body.Close()).NotTo(o.HaveOccurred(), "failed to close response body")
 			}
 		})
 	})
 })
+
+func getDefaultIngressClusterDomainName(oc *exutil.CLI, timeout time.Duration) (string, error) {
+	var domain string
+
+	if err := wait.PollImmediate(time.Second, timeout, func() (bool, error) {
+		ingress, err := oc.AdminConfigClient().ConfigV1().Ingresses().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		if err != nil {
+			e2e.Logf("Get ingresses.config/cluster failed: %v, retrying...", err)
+			return false, nil
+		}
+		domain = ingress.Spec.Domain
+		return true, nil
+	}); err != nil {
+		return "", err
+	}
+
+	return domain, nil
+}
+
+func recreateRouteWithHost(oc *exutil.CLI, routeName, host, shardName string, timeout time.Duration) (*v1.Route, error) {
+	var newRoute *v1.Route
+
+	err := wait.PollImmediate(time.Second, timeout, func() (bool, error) {
+		existingRoute, err := oc.RouteClient().RouteV1().Routes(oc.Namespace()).Get(context.Background(), routeName, metav1.GetOptions{})
+		if err != nil {
+			e2e.Logf("Error getting route %q: %v, retrying...", routeName, err)
+			return false, err
+		}
+
+		if err := oc.RouteClient().RouteV1().Routes(oc.Namespace()).Delete(context.Background(), routeName, metav1.DeleteOptions{}); err != nil {
+			e2e.Logf("Error deleting route %q: %v", routeName, err)
+			return true, err
+		}
+
+		newRoute = &v1.Route{}
+
+		//  Type
+		newRoute.Kind = existingRoute.Kind
+		newRoute.APIVersion = existingRoute.APIVersion
+
+		// Metadata
+		newRoute.Name = existingRoute.Name
+		newRoute.Namespace = existingRoute.Namespace
+		newRoute.Labels = map[string]string{"type": shardName}
+
+		// Spec
+		existingRoute.Spec.DeepCopyInto(&newRoute.Spec)
+		newRoute.Spec.Host = host
+
+		e2e.Logf("updating route %q with host=%q", routeName, host)
+		newRoute, err = oc.RouteClient().RouteV1().Routes(oc.Namespace()).Create(context.Background(), newRoute, metav1.CreateOptions{})
+		if err != nil {
+			e2e.Logf("Error creating route %q with host=%q: %v", routeName, host, err)
+			return true, err
+		}
+		return true, nil
+	})
+
+	return newRoute, err
+}
