@@ -184,7 +184,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 
 			for i, tc := range testCases {
 				testConfig := fmt.Sprintf("%+v", tc)
-				e2e.Logf("[test #%d/%d]: route: %s", i+1, len(testCases), tc.routeName)
+				e2e.Logf("[test #%d/%d]: GET route: %s", i+1, len(testCases), tc.route.Spec.Host)
 
 				var resp *http.Response
 
@@ -194,19 +194,19 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 					if err != nil && len(tc.expectedGetError) != 0 {
 						errMatch := strings.Contains(err.Error(), tc.expectedGetError)
 						if !errMatch {
-							e2e.Logf("[test #%d/%d]: route: %s, GET error: %v, retrying...", i+1, len(testCases), tc.routeName, err)
+							e2e.Logf("[test #%d/%d]: route: %s, GET error: %v, retrying...", i+1, len(testCases), tc.route.Spec.Host, err)
 						}
 						return errMatch, nil
 					}
 					if err != nil {
-						e2e.Logf("[test #%d/%d]: route: %s, GET error: %v, retrying...", i+1, len(testCases), tc.routeName, err)
+						e2e.Logf("[test #%d/%d]: route: %s, GET error: %v, retrying...", i+1, len(testCases), tc.route.Spec.Host, err)
 						return false, nil // could be 503 if service not ready
 					}
 					if tc.statusCode == 0 {
 						return false, nil
 					}
 					if resp.StatusCode != tc.statusCode {
-						e2e.Logf("[test #%d/%d]: route: %s, expected status: %v, actual status: %v, retrying...", i+1, len(testCases), tc.routeName, tc.statusCode, resp.StatusCode)
+						e2e.Logf("[test #%d/%d]: route: %s, expected status: %v, actual status: %v, retrying...", i+1, len(testCases), tc.route.Spec.Host, tc.statusCode, resp.StatusCode)
 					}
 					return resp.StatusCode == tc.statusCode, nil
 				})).NotTo(o.HaveOccurred())

@@ -45,38 +45,36 @@ objects:
       name: http2
   spec:
     containers:
-    - image: golang:1.14
+    - image: openshift/origin-release:golang-1.15
       name: server
-      command: ["/workdir/http2-server"]
+      command: ["/bin/bash", "-c"]
+      args:
+        - set -e;
+          date;
+          cd /tmp;
+          base64 -d /src/data.base64 | tar zxf -;
+          rm -f go.mod; rm -f go.sum;
+          go run server.go;
       readinessProbe:
         httpGet:
           path: /healthz
           port: 8080
         initialDelaySeconds: 3
         periodSeconds: 3
-      env:
-      - name: GODEBUG
-        value: http2debug=1
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+        initialDelaySeconds: 3
+        periodSeconds: 3
       ports:
       - containerPort: 8443
         protocol: TCP
       - containerPort: 8080
         protocol: TCP
-      volumeMounts:
-      - name: cert
-        mountPath: /etc/serving-cert
-      - name: workdir
-        mountPath: /workdir
-    initContainers:
-    - image: golang:1.14
-      name: builder
-      command: ["/bin/bash", "-c"]
-      args:
-        - set -e;
-          cd /workdir;
-          base64 -d /go/src/data.base64 | tar zxf -;
-          go build -v -mod=readonly -o /workdir/http2-server server.go;
       env:
+      - name: GODEBUG
+        value: http2debug=1
       - name: GO111MODULE
         value: "auto"
       - name: GOCACHE
@@ -84,12 +82,10 @@ objects:
       - name: GOPROXY
         value: "https://goproxy.golang.org,direct"
       volumeMounts:
-      - name: cert
-        mountPath: /etc/serving-cert
-      - name: src-volume
-        mountPath: /go/src
-      - name: workdir
-        mountPath: /workdir
+      - mountPath: /src
+        name: src-volume
+      - mountPath: /etc/serving-cert
+        name: cert
     volumes:
     - name: src-volume
       configMap:
@@ -97,8 +93,7 @@ objects:
     - name: cert
       secret:
         secretName: serving-cert-http2
-    - name: workdir
-      emptyDir: {}
+    terminationGracePeriodSeconds: 1
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
