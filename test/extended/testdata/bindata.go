@@ -455,6 +455,7 @@
 // test/extended/testdata/router/router-grpc-interop.yaml
 // test/extended/testdata/router/router-h2spec.yaml
 // test/extended/testdata/router/router-http-echo-server.yaml
+// test/extended/testdata/router/router-http2-shard.yaml
 // test/extended/testdata/router/router-http2.yaml
 // test/extended/testdata/router/router-idle.yaml
 // test/extended/testdata/router/router-metrics.yaml
@@ -50374,7 +50375,51 @@ func testExtendedTestdataRouterRouterHttpEchoServerYaml() (*asset, error) {
 	return a, nil
 }
 
-var _testExtendedTestdataRouterRouterHttp2Yaml = []byte(`apiVersion: v1
+var _testExtendedTestdataRouterRouterHttp2ShardYaml = []byte(`apiVersion: template.openshift.io/v1
+kind: Template
+parameters:
+- name: NAME
+- name: DOMAIN
+- name: NAMESPACE
+- name: NAMESPACE_SELECTOR
+objects:
+- apiVersion: operator.openshift.io/v1
+  kind: IngressController
+  metadata:
+    name: ${NAMESPACE_SELECTOR}
+    namespace: ${NAMESPACE}
+    annotations:
+      ingress.operator.openshift.io/default-enable-http2: "true"
+  spec:
+    replicas: 1
+    domain: ${DOMAIN}
+    endpointPublishingStrategy:
+      type: LoadBalancerService
+    nodePlacement:
+      nodeSelector:
+        matchLabels:
+          node-role.kubernetes.io/worker: ""
+    namespaceSelector:
+      matchLabels:
+        type: ${NAMESPACE_SELECTOR}
+`)
+
+func testExtendedTestdataRouterRouterHttp2ShardYamlBytes() ([]byte, error) {
+	return _testExtendedTestdataRouterRouterHttp2ShardYaml, nil
+}
+
+func testExtendedTestdataRouterRouterHttp2ShardYaml() (*asset, error) {
+	bytes, err := testExtendedTestdataRouterRouterHttp2ShardYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "test/extended/testdata/router/router-http2-shard.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _testExtendedTestdataRouterRouterHttp2Yaml = []byte(`apiVersion: template.openshift.io/v1
 kind: Template
 objects:
 - apiVersion: v1
@@ -50389,7 +50434,7 @@ objects:
     ports:
       - name: https
         protocol: TCP
-        port: 27443
+        port: 8443
         targetPort: 8443
       - name: http
         protocol: TCP
@@ -50421,38 +50466,34 @@ objects:
       name: http2
   spec:
     containers:
-    - image: golang:1.14
+    - image: openshift/origin-release:golang-1.15
       name: server
-      command: ["/workdir/http2-server"]
+      command: ["/bin/bash", "-c"]
+      args:
+        - set -e;
+          date;
+          cd /tmp;
+          base64 -d /src/data.base64 | tar zxf -;
+          rm -f go.mod; rm -f go.sum;
+          go run server.go;
       readinessProbe:
-        httpGet:
-          path: /healthz
+        tcpSocket:
           port: 8080
-        initialDelaySeconds: 3
-        periodSeconds: 3
-      env:
-      - name: GODEBUG
-        value: http2debug=1
+        initialDelaySeconds: 5
+        periodSeconds: 10
+      livenessProbe:
+        tcpSocket:
+          port: 8080
+        initialDelaySeconds: 15
+        periodSeconds: 20
       ports:
       - containerPort: 8443
         protocol: TCP
       - containerPort: 8080
         protocol: TCP
-      volumeMounts:
-      - name: cert
-        mountPath: /etc/serving-cert
-      - name: workdir
-        mountPath: /workdir
-    initContainers:
-    - image: golang:1.14
-      name: builder
-      command: ["/bin/bash", "-c"]
-      args:
-        - set -e;
-          cd /workdir;
-          base64 -d /go/src/data.base64 | tar zxf -;
-          go build -v -mod=readonly -o /workdir/http2-server server.go;
       env:
+      - name: GODEBUG
+        value: http2debug=1
       - name: GO111MODULE
         value: "auto"
       - name: GOCACHE
@@ -50460,12 +50501,10 @@ objects:
       - name: GOPROXY
         value: "https://goproxy.golang.org,direct"
       volumeMounts:
-      - name: cert
-        mountPath: /etc/serving-cert
-      - name: src-volume
-        mountPath: /go/src
-      - name: workdir
-        mountPath: /workdir
+      - mountPath: /src
+        name: src-volume
+      - mountPath: /etc/serving-cert
+        name: cert
     volumes:
     - name: src-volume
       configMap:
@@ -50473,8 +50512,7 @@ objects:
     - name: cert
       secret:
         secretName: serving-cert-http2
-    - name: workdir
-      emptyDir: {}
+    terminationGracePeriodSeconds: 1
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
@@ -50576,6 +50614,7 @@ objects:
   metadata:
     name: http2-passthrough
   spec:
+    host: http2-passthrough-edge.http2-ctt4p.apps.amcdermo-2021-02-16-0843.devcluster.openshift.com
     port:
       targetPort: 8443
     tls:
@@ -53983,6 +54022,7 @@ var _bindata = map[string]func() (*asset, error){
 	"test/extended/testdata/router/router-grpc-interop.yaml":                                                 testExtendedTestdataRouterRouterGrpcInteropYaml,
 	"test/extended/testdata/router/router-h2spec.yaml":                                                       testExtendedTestdataRouterRouterH2specYaml,
 	"test/extended/testdata/router/router-http-echo-server.yaml":                                             testExtendedTestdataRouterRouterHttpEchoServerYaml,
+	"test/extended/testdata/router/router-http2-shard.yaml":                                                  testExtendedTestdataRouterRouterHttp2ShardYaml,
 	"test/extended/testdata/router/router-http2.yaml":                                                        testExtendedTestdataRouterRouterHttp2Yaml,
 	"test/extended/testdata/router/router-idle.yaml":                                                         testExtendedTestdataRouterRouterIdleYaml,
 	"test/extended/testdata/router/router-metrics.yaml":                                                      testExtendedTestdataRouterRouterMetricsYaml,
@@ -54731,6 +54771,7 @@ var _bintree = &bintree{nil, map[string]*bintree{
 					"router-grpc-interop.yaml":     {testExtendedTestdataRouterRouterGrpcInteropYaml, map[string]*bintree{}},
 					"router-h2spec.yaml":           {testExtendedTestdataRouterRouterH2specYaml, map[string]*bintree{}},
 					"router-http-echo-server.yaml": {testExtendedTestdataRouterRouterHttpEchoServerYaml, map[string]*bintree{}},
+					"router-http2-shard.yaml":      {testExtendedTestdataRouterRouterHttp2ShardYaml, map[string]*bintree{}},
 					"router-http2.yaml":            {testExtendedTestdataRouterRouterHttp2Yaml, map[string]*bintree{}},
 					"router-idle.yaml":             {testExtendedTestdataRouterRouterIdleYaml, map[string]*bintree{}},
 					"router-metrics.yaml":          {testExtendedTestdataRouterRouterMetricsYaml, map[string]*bintree{}},
