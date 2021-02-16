@@ -13,7 +13,7 @@ objects:
     ports:
       - name: https
         protocol: TCP
-        port: 27443
+        port: 8443
         targetPort: 8443
       - name: http
         protocol: TCP
@@ -56,17 +56,15 @@ objects:
           rm -f go.mod; rm -f go.sum;
           go run server.go;
       readinessProbe:
-        httpGet:
-          path: /healthz
+        tcpSocket:
           port: 8080
-        initialDelaySeconds: 3
-        periodSeconds: 3
+        initialDelaySeconds: 5
+        periodSeconds: 10
       livenessProbe:
-        httpGet:
-          path: /healthz
+        tcpSocket:
           port: 8080
-        initialDelaySeconds: 3
-        periodSeconds: 3
+        initialDelaySeconds: 15
+        periodSeconds: 20
       ports:
       - containerPort: 8443
         protocol: TCP
@@ -195,6 +193,7 @@ objects:
   metadata:
     name: http2-passthrough
   spec:
+    host: http2-passthrough-edge.http2-ctt4p.apps.amcdermo-2021-02-16-0843.devcluster.openshift.com
     port:
       targetPort: 8443
     tls:
