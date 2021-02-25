@@ -60,6 +60,8 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 		shardConfigPath = exutil.FixturePath("testdata", "router", "router-http2-shard.yaml")
 		configPath      = exutil.FixturePath("testdata", "router", "router-http2.yaml")
 		oc              = exutil.NewCLI("router-http2")
+
+		routerShardConfig string
 	)
 
 	// this hook must be registered before the framework namespace teardown
@@ -69,7 +71,9 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			exutil.DumpPodLogsStartingWith("http2", oc)
 			exutil.DumpPodLogsStartingWithInNamespace("router", "openshift-ingress", oc.AsAdmin())
 		}
-		oc.AsAdmin().Run("delete").Args("-f", shardConfigPath, "--namespace=openshift-ingress-operator").Execute()
+		if len(routerShardConfig) > 0 {
+			oc.AsAdmin().Run("delete").Args("-n", "openshift-ingress-operator", "-f", routerShardConfig).Execute()
+		}
 	})
 
 	g.Describe("The HAProxy router", func() {
@@ -77,10 +81,9 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			g.By(fmt.Sprintf("creating test fixture from a config file %q", configPath))
 			err := oc.Run("new-app").Args("-f", configPath).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
-			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "http2 backend server pod not running")
-
 			err = oc.AsAdmin().Run("label").Args("namespace", oc.Namespace(), "type="+oc.Namespace()).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
+			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "http2 backend server pod not running")
 
 			defaultDomain, err := getDefaultIngressClusterDomainName(oc, 5*time.Minute)
 			o.Expect(err).NotTo(o.HaveOccurred(), "failed to find default domain name")
@@ -89,7 +92,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 
 			// roll out ingresscontroller for this test only
 			g.By(fmt.Sprintf("creating router shard %q from a config file %q", oc.Namespace(), shardConfigPath))
-			routerShardConfig, err := oc.AsAdmin().Run("process").Args("-f", shardConfigPath, "-p", fmt.Sprintf("NAME=%v", oc.Namespace()), "NAMESPACE=openshift-ingress-operator", "DOMAIN="+shardDomain, "NAMESPACE_SELECTOR="+oc.Namespace()).OutputToFile("http2config.json")
+			routerShardConfig, err = oc.AsAdmin().Run("process").Args("-f", shardConfigPath, "-p", fmt.Sprintf("NAME=%v", oc.Namespace()), "NAMESPACE=openshift-ingress-operator", "DOMAIN="+shardDomain, "NAMESPACE_SELECTOR="+oc.Namespace()).OutputToFile("http2config.json")
 			o.Expect(err).NotTo(o.HaveOccurred(), "ingresscontroller conditions not met")
 			err = oc.AsAdmin().Run("create").Args("-f", routerShardConfig, "--namespace=openshift-ingress-operator").Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
