@@ -50421,6 +50421,10 @@ func testExtendedTestdataRouterRouterHttp2ShardYaml() (*asset, error) {
 
 var _testExtendedTestdataRouterRouterHttp2Yaml = []byte(`apiVersion: template.openshift.io/v1
 kind: Template
+parameters:
+- name: TLS_KEY
+- name: TLS_CRT
+- name: SRC
 objects:
 - apiVersion: v1
   kind: Service
@@ -50592,18 +50596,7 @@ objects:
         AwEHoUQDQgAEjCp5jERwCaBpjhoaOxgD1DDaPwKkWu+a8mJLn9Cn9+LcSub05zPa
         MQy0a+FkvZSyTA2y8a8/IMM1f2MQC6bATg==
         -----END EC PRIVATE KEY-----
-      certificate: |-
-        -----BEGIN CERTIFICATE-----
-        MIIBgTCCASagAwIBAgIRAO2UsHGM2j+IZfxSG0KSSH0wCgYIKoZIzj0EAwIwJDEQ
-        MA4GA1UEChMHUmVkIEhhdDEQMA4GA1UEAxMHUm9vdCBDQTAgFw0yMDA1MTExMDU2
-        NThaGA8yMTIwMDQxNzEwNTY1OFowJjEQMA4GA1UEChMHUmVkIEhhdDESMBAGA1UE
-        AwwJdGVzdF9jZXJ0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEjCp5jERwCaBp
-        jhoaOxgD1DDaPwKkWu+a8mJLn9Cn9+LcSub05zPaMQy0a+FkvZSyTA2y8a8/IMM1
-        f2MQC6bATqM1MDMwDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMB
-        MAwGA1UdEwEB/wQCMAAwCgYIKoZIzj0EAwIDSQAwRgIhALwL+vTFS37a/R6RMeNN
-        fKKM6dOZeTSIVk6eGen6ZmZmAiEAhdLQwSu7ev/GrGwINF1rraoyrgiq4mFdPwHa
-        TctfSDo=
-        -----END CERTIFICATE-----
+      certificate: ${TLS_CRT}
     to:
       kind: Service
       name: http2

@@ -32,6 +32,20 @@ const (
 	http2ClientTimeout = 1 * time.Minute
 )
 
+const cert = `
+-----BEGIN CERTIFICATE-----
+MIIBgTCCASagAwIBAgIRAO2UsHGM2j+IZfxSG0KSSH0wCgYIKoZIzj0EAwIwJDEQ
+MA4GA1UEChMHUmVkIEhhdDEQMA4GA1UEAxMHUm9vdCBDQTAgFw0yMDA1MTExMDU2
+NThaGA8yMTIwMDQxNzEwNTY1OFowJjEQMA4GA1UEChMHUmVkIEhhdDESMBAGA1UE
+AwwJdGVzdF9jZXJ0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEjCp5jERwCaBp
+jhoaOxgD1DDaPwKkWu+a8mJLn9Cn9+LcSub05zPaMQy0a+FkvZSyTA2y8a8/IMM1
+f2MQC6bATqM1MDMwDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMB
+MAwGA1UdEwEB/wQCMAAwCgYIKoZIzj0EAwIDSQAwRgIhALwL+vTFS37a/R6RMeNN
+fKKM6dOZeTSIVk6eGen6ZmZmAiEAhdLQwSu7ev/GrGwINF1rraoyrgiq4mFdPwHa
+TctfSDo=
+-----END CERTIFICATE-----
+`
+
 func makeHTTPClient(useHTTP2Transport bool, timeout time.Duration) *http.Client {
 	tlsConfig := tls.Config{
 		InsecureSkipVerify: true,
@@ -68,8 +82,8 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 	// hook
 	g.AfterEach(func() {
 		if g.CurrentGinkgoTestDescription().Failed {
-			exutil.DumpPodLogsStartingWith("http2", oc)
-			exutil.DumpPodLogsStartingWithInNamespace("router", "openshift-ingress", oc.AsAdmin())
+			// exutil.DumpPodLogsStartingWith("http2", oc)
+			// exutil.DumpPodLogsStartingWithInNamespace("router", "openshift-ingress", oc.AsAdmin())
 		}
 		if len(routerShardConfig) > 0 {
 			oc.AsAdmin().Run("delete").Args("-n", "openshift-ingress-operator", "-f", routerShardConfig).Execute()
@@ -79,7 +93,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 	g.Describe("The HAProxy router", func() {
 		g.It("should pass the http2 tests", func() {
 			g.By(fmt.Sprintf("creating test fixture from a config file %q", configPath))
-			err := oc.Run("new-app").Args("-f", configPath).Execute()
+			err := oc.Run("new-app").Args("--dry-run", "-f", configPath, "-p", "TLS_CRT="+fmt.Sprintf("%s", strings.ReplaceAll(cert[1:], "\n", `\n`))).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
 			err = oc.AsAdmin().Run("label").Args("namespace", oc.Namespace(), "type="+oc.Namespace()).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
