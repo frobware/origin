@@ -71,9 +71,10 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 	defer g.GinkgoRecover()
 
 	var (
-		shardConfigPath = exutil.FixturePath("testdata", "router", "router-http2-shard.yaml")
-		configPath      = exutil.FixturePath("testdata", "router", "router-http2.yaml")
-		oc              = exutil.NewCLI("router-http2")
+		http2ConfigPath       = exutil.FixturePath("testdata", "router", "router-http2.yaml")
+		http2RoutesConfigPath = exutil.FixturePath("testdata", "router", "router-http2-routes.yaml")
+		shardConfigPath       = exutil.FixturePath("testdata", "router", "router-http2-shard.yaml")
+		oc                    = exutil.NewCLI("router-http2")
 
 		routerShardConfig string
 	)
@@ -92,8 +93,8 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 
 	g.Describe("The HAProxy router", func() {
 		g.It("should pass the http2 tests", func() {
-			g.By(fmt.Sprintf("creating test fixture from a config file %q", configPath))
-			err := oc.Run("new-app").Args("--dry-run", "-f", configPath, "-p", "TLS_CRT="+fmt.Sprintf("%s", strings.ReplaceAll(cert[1:], "\n", `\n`))).Execute()
+			g.By(fmt.Sprintf("creating test fixture from a config file %q", http2ConfigPath))
+			err := oc.Run("new-app").Args("--dry-run", "-f", http2ConfigPath, "-p", "TLS_CRT="+fmt.Sprintf("%s", strings.ReplaceAll(cert[1:], "\n", `\n`))).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
 			err = oc.AsAdmin().Run("label").Args("namespace", oc.Namespace(), "type="+oc.Namespace()).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
