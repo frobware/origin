@@ -20,22 +20,22 @@ import (
 	testpb "google.golang.org/grpc/interop/grpc_testing"
 )
 
-type testFn func(tc testpb.TestServiceClient, args ...grpc.CallOption)
+type testFn func(tc testpb.TestServiceClient, args ...grpc.CallOption) error
 
 var defaultTestCases = map[string]testFn{
-	"cancel_after_begin":          interop.DoCancelAfterBegin,
-	"cancel_after_first_response": interop.DoCancelAfterFirstResponse,
-	"client_streaming":            interop.DoClientStreaming,
-	"custom_metadata":             interop.DoCustomMetadata,
-	"empty_unary":                 interop.DoEmptyUnaryCall,
-	"large_unary":                 interop.DoLargeUnaryCall,
-	"ping_pong":                   interop.DoPingPong,
-	"server_streaming":            interop.DoServerStreaming,
-	"special_status_message":      interop.DoSpecialStatusMessage,
-	"status_code_and_message":     interop.DoStatusCodeAndMessage,
-	"timeout_on_sleeping_server":  interop.DoTimeoutOnSleepingServer,
-	"unimplemented_method":        nil, // special case
-	"unimplemented_service":       nil, // special case
+	// "cancel_after_begin":          interop.DoCancelAfterBegin,
+	// "cancel_after_first_response": interop.DoCancelAfterFirstResponse,
+	// "client_streaming":            interop.DoClientStreaming,
+	// "custom_metadata":             interop.DoCustomMetadata,
+	// "empty_unary":                 interop.DoEmptyUnaryCall,
+	// "large_unary":                 interop.DoLargeUnaryCall,
+	// "ping_pong":                   interop.DoPingPong,
+	"server_streaming": DoServerStreaming,
+	// "special_status_message":      interop.DoSpecialStatusMessage,
+	// "status_code_and_message":     interop.DoStatusCodeAndMessage,
+	// "timeout_on_sleeping_server":  interop.DoTimeoutOnSleepingServer,
+	// "unimplemented_method":        nil, // special case
+	// "unimplemented_service":       nil, // special case
 }
 
 var (
