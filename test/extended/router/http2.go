@@ -1,12 +1,16 @@
 package router
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -71,10 +75,10 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 	defer g.GinkgoRecover()
 
 	var (
-		http2ConfigPath       = exutil.FixturePath("testdata", "router", "router-http2.yaml")
-		http2RoutesConfigPath = exutil.FixturePath("testdata", "router", "router-http2-routes.yaml")
-		shardConfigPath       = exutil.FixturePath("testdata", "router", "router-http2-shard.yaml")
-		oc                    = exutil.NewCLI("router-http2")
+		http2ConfigPath = exutil.FixturePath("testdata", "router", "router-http2.yaml")
+		// http2RoutesConfigPath = exutil.FixturePath("testdata", "router", "router-http2-routes.yaml")
+		shardConfigPath = exutil.FixturePath("testdata", "router", "router-http2-shard.yaml")
+		oc              = exutil.NewCLI("router-http2")
 
 		routerShardConfig string
 	)
@@ -93,8 +97,20 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 
 	g.Describe("The HAProxy router", func() {
 		g.It("should pass the http2 tests", func() {
+			// data, err := makeTarData([]string{"http2/cluster/server.go"})
+			// o.Expect(err).NotTo(o.HaveOccurred())
+
+			// // data := split(base64.StdEncoding.EncodeToString(makeTarData([]string{"http2/cluster/server.go"})), 76)
+			// g.By(fmt.Sprintf("creating test fixture from a config file %q", http2ConfigPath))
+			// // err = oc.Run("new-app").Args("-f", http2ConfigPath, "-p", "BASE64_SRC_TGZ="+split(base64.StdEndcoding.EndcodeToString(data))).Execute()
+			// o.Expect(err).NotTo(o.HaveOccurred())
+
+			// err = oc.AsAdmin().Run("label").Args("namespace", oc.Namespace(), "type="+oc.Namespace()).Execute()
+			// o.Expect(err).NotTo(o.HaveOccurred())
+			// e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "http2 backend server pod not running")
+
 			g.By(fmt.Sprintf("creating test fixture from a config file %q", http2ConfigPath))
-			err := oc.Run("new-app").Args("--dry-run", "-f", http2ConfigPath, "-p", "TLS_CRT="+fmt.Sprintf("%s", strings.ReplaceAll(cert[1:], "\n", `\n`))).Execute()
+			err := oc.Run("new-app").Args("-f", http2ConfigPath, "-p", "TLS_CRT="+fmt.Sprintf("%s", strings.ReplaceAll(cert[1:], "\n", `\n`))).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
 			err = oc.AsAdmin().Run("label").Args("namespace", oc.Namespace(), "type="+oc.Namespace()).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
@@ -352,4 +368,83 @@ func waitForIngressControllerCondition(oc *exutil.CLI, timeout time.Duration, na
 		}
 		return met, nil
 	})
+}
+
+// readFile reads all data from filename, or fatally fails if an error
+// occurs.
+func readFile(filename string) ([]byte, error) {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %q: %v", filename, err)
+	}
+	return data, nil
+}
+
+func addPrefix(lines []string, prefix string) []string {
+	for i, line := range lines {
+		lines[i] = prefix + line
+	}
+	return lines
+}
+
+// split string into chunks limited in length by size.
+// Note: assumes 1:1 mapping between bytes/chars (i.e., non-UTF).
+func split(s string, size int) []string {
+	var chunks []string
+
+	for len(s) > 0 {
+		if len(s) < size {
+			size = len(s)
+		}
+		chunks, s = append(chunks, s[:size]), s[size:]
+	}
+
+	return chunks
+}
+
+func makeCompressedTarArchive(filenames []string) ([]byte, error) {
+	buf := new(bytes.Buffer)
+
+	gz, err := gzip.NewWriterLevel(buf, gzip.BestCompression)
+	if err != nil {
+		return nil, fmt.Errorf("Error: gzip.NewWriterLevel(): %v", err)
+	}
+
+	tw := tar.NewWriter(gz)
+
+	for _, filename := range filenames {
+		fi, err := os.Stat(filename)
+		if err != nil {
+			return nil, fmt.Errorf("Error: failed to stat %q: %v", filename, err)
+		}
+
+		hdr, err := tar.FileInfoHeader(fi, "")
+		if err != nil {
+			return nil, fmt.Errorf("Error: failed to create tar header for %q: %v", filename, err)
+
+		}
+
+		if err := tw.WriteHeader(hdr); err != nil {
+			return nil, err
+		}
+
+		data, err := readFile(filename)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := tw.Write(data); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tw.Close(); err != nil {
+		return nil, err
+	}
+
+	if err := gz.Close(); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }

@@ -1,7 +1,7 @@
 apiVersion: template.openshift.io/v1
 kind: Template
 parameters:
-- name: SRC
+- name: BASE64_SRC_TGZ
 objects:
 - apiVersion: v1
   kind: Service
@@ -26,19 +26,7 @@ objects:
   metadata:
     name: src-config
   data:
-    data.base64: |
-      H4sIAAAAAAAC/+xW32vbMBD2q/VXaIKBvWWObCdpaenDKA2FBhbqsDEYFONcXBNZSiU5xSv+34cU
-      t01Y1/1gaynz93I29919d7qTcS6CUsydfwpKKR2NBsaGe0O6bTeIqRPGo+FgGA8HcezQMBzuUQdT
-      5wlQKZ1Kh9K0KB/l/czftnJnXwhKMa8Y4IxVSoNEKBc4DMIYOR3+C+QiUFX5zPeffnf/R2HU3f+n
-      gAK5Bhnk4vnmH4VRbOc/iqLhHg0dGkZx1H3/nwSrNFumOeAyLThCRbkSUmMPuWRRaoJcwkRuDAfd
-      v9R6ZZ6FIshHKBNcWeocFmnF9OlsNp2aaHyEyT7dp2THlVifcQ0G8b1rNkmOTYyN6oPO+mYjC56/
-      y0DqvmYqyKTe4Z9B/Sh/CbUtcFHxDDMhltXqhK+9JdQ93Gb5mDKstCx47rcW3yC3WOB1ynpYLPHB
-      ERYqmGwH+4fGcYNcV4KuJDdc5Dbo9vU+NWpacXOonm9iMqnHBQOT974iMpskF8fnM3JX1+Y0fOQu
-      of4B/+zk8w7/DGofIdcMJzhN+ZzBuOKZR/qkh00R3jW2vnNQK8EVfJKFBtnDEq7wm9ZzVYHStk53
-      UepgvJIF1961JQVTKbTwkds8LHMJKdOXX/+GGpGQzmtyq5WLTcoN1S7m7nGYtbqYftg+wNsl9JHr
-      MpEHU5N74ZFJoTRwM2fBsU31ev2Fk559NmJm+CClUbBlbgLe83liPpAeOSBvDbWHecH8Q0t9dWRe
-      bHFWa5zqlHkgpRFvkNt4v9xF8kAbyeN9KMgqCaz+s4Zmk2Srp3Y7e7hdu9/vUgGDTOObBjXdr2OH
-      Dh06vAR8CwAA//+plR+uABIAAA==
+    data.base64: ${BASE64_SRC_TGZ}
 - apiVersion: v1
   kind: Pod
   metadata:
