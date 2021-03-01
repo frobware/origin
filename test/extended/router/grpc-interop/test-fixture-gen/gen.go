@@ -92,7 +92,7 @@ func main() {
 
 	data := split(base64.StdEncoding.EncodeToString(makeTarData(flag.Args())), 76)
 
-	fmt.Printf(`apiVersion: v1
+	fmt.Printf(`apiVersion: template.openshift.io/v1
 kind: Template
 objects:
 - apiVersion: v1
@@ -130,112 +130,118 @@ objects:
     labels:
       app: grpc-interop
     name: service-ca
-- apiVersion: v1
-  kind: Pod
+- apiVersion: apps/v1
+  kind: Deployment
   metadata:
     name: grpc-interop
-    labels:
-      app: grpc-interop
   spec:
-    containers:
-    - image: golang:1.14
-      name: server
-      command: ["/workdir/grpc-server"]
-      env:
-      - name: GRPC_GO_LOG_VERBOSITY_LEVEL
-        value: "99"
-      - name: GRPC_GO_LOG_SEVERITY_LEVEL
-        value: "info"
-      - name: GODEBUG
-        value: http2debug=1
-      readinessProbe:
-        httpGet:
-          path: /healthz
-          port: 8080
-        initialDelaySeconds: 10
-        periodSeconds: 3
-      ports:
-      - containerPort: 8443
-        protocol: TCP
-      - containerPort: 1110
-        protocol: TCP
-      - containerPort: 8080
-        protocol: TCP
-      volumeMounts:
-      - name: service-certs
-        mountPath: /etc/service-certs
-      - name: tmp
-        mountPath: /var/run
-      - name: workdir
-        mountPath: /workdir
-      readOnly: true
-    - image: golang:1.14
-      name: client-shell
-      command: ["/bin/bash"]
-      args: ["-c", "sleep 100000"]
-      readinessProbe:
-        httpGet:
-          path: /healthz
-          port: 8080
-        initialDelaySeconds: 10
-        periodSeconds: 3
-      ports:
-      - containerPort: 8080
-        protocol: TCP
-      volumeMounts:
-      - name: service-certs
-        secret:
-          secretName: service-certs
-        mountPath: /etc/service-certs
-      - name: tmp
-        mountPath: /var/run
-      - name: workdir
-        mountPath: /workdir
-      - name: service-ca
-        mountPath: /etc/service-ca
-    initContainers:
-    - image: golang:1.14
-      name: builder
-      command: ["/bin/bash", "-c"]
-      args:
-        - set -e;
-          cd /workdir;
-          base64 -d /go/src/data.base64 | tar zxf -;
-          go build -v -mod=readonly -o /workdir/grpc-client client.go;
-          go build -v -mod=readonly -o /workdir/grpc-server server.go;
-      env:
-      - name: GO111MODULE
-        value: "auto"
-      - name: GOCACHE
-        value: "/tmp"
-      - name: GOPROXY
-        value: "https://goproxy.golang.org,direct"
-      volumeMounts:
-      - name: src-volume
-        mountPath: /go/src
-      - name: tmp
-        mountPath: /var/run
-      - name: workdir
-        mountPath: /workdir
-    volumes:
-    - name: src-volume
-      configMap:
-        name: src-config
-    - name: service-certs
-      secret:
-        secretName: service-certs
-    - name: tmp
-      emptyDir: {}
-    - name: workdir
-      emptyDir: {}
-    - configMap:
-        items:
-        - key: service-ca.crt
-          path: service-ca.crt
-        name: service-ca
-      name: service-ca
-  labels:
-    app: grpc-interop
+    selector:
+      matchLabels:
+        app: grpc-interop
+    replicas: 10
+    template:
+      metadata:
+        name: grpc-interop
+        labels:
+          app: grpc-interop
+      spec:
+        containers:
+        - image: golang:1.14
+          name: server
+          command: ["/workdir/grpc-server"]
+          env:
+          - name: GRPC_GO_LOG_VERBOSITY_LEVEL
+            value: "99"
+          - name: GRPC_GO_LOG_SEVERITY_LEVEL
+            value: "info"
+          - name: GODEBUG
+            value: http2debug=1
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 3
+          ports:
+          - containerPort: 8443
+            protocol: TCP
+          - containerPort: 1110
+            protocol: TCP
+          - containerPort: 8080
+            protocol: TCP
+          volumeMounts:
+          - name: service-certs
+            mountPath: /etc/service-certs
+          - name: tmp
+            mountPath: /var/run
+          - name: workdir
+            mountPath: /workdir
+          readOnly: true
+        - image: golang:1.14
+          name: client-shell
+          command: ["/bin/bash"]
+          args: ["-c", "sleep 100000"]
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 3
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          volumeMounts:
+          - name: service-certs
+            secret:
+              secretName: service-certs
+            mountPath: /etc/service-certs
+          - name: tmp
+            mountPath: /var/run
+          - name: workdir
+            mountPath: /workdir
+          - name: service-ca
+            mountPath: /etc/service-ca
+        initContainers:
+        - image: golang:1.14
+          name: builder
+          command: ["/bin/bash", "-c"]
+          args:
+            - set -e;
+              cd /workdir;
+              base64 -d /go/src/data.base64 | tar zxf -;
+              go build -v -mod=readonly -o /workdir/grpc-client client.go;
+              go build -v -mod=readonly -o /workdir/grpc-server server.go;
+          env:
+          - name: GO111MODULE
+            value: "auto"
+          - name: GOCACHE
+            value: "/tmp"
+          - name: GOPROXY
+            value: "https://goproxy.golang.org,direct"
+          volumeMounts:
+          - name: src-volume
+            mountPath: /go/src
+          - name: tmp
+            mountPath: /var/run
+          - name: workdir
+            mountPath: /workdir
+        volumes:
+        - name: src-volume
+          configMap:
+            name: src-config
+        - name: service-certs
+          secret:
+            secretName: service-certs
+        - name: tmp
+          emptyDir: {}
+        - name: workdir
+          emptyDir: {}
+        - configMap:
+            items:
+            - key: service-ca.crt
+              path: service-ca.crt
+            name: service-ca
+          name: service-ca
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:

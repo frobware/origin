@@ -20,7 +20,7 @@ build-check:
 	$(MAKE) -C cluster
 
 $(BINDATA): $(TEST_FIXTURE)
-	(cd ../../../..; ./hack/update-generated-bindata.sh)
+	(cd ../../../..; ./hack/update-generated.sh)
 
 clean:
 	$(RM) $(TEST_FIXTURE)
