@@ -66,7 +66,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 		http2RouterShardConfigPath = exutil.FixturePath("testdata", "router", "router-http2-shard.yaml")
 		oc                         = exutil.NewCLI("router-http2")
 
-		shardConfig string
+		shardConfigPath string // computed
 	)
 
 	// this hook must be registered before the framework namespace teardown
@@ -76,8 +76,8 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			// exutil.DumpPodLogsStartingWith("http2", oc)
 			// exutil.DumpPodLogsStartingWithInNamespace("router", "openshift-ingress", oc.AsAdmin())
 		}
-		if len(shardConfig) > 0 {
-			oc.AsAdmin().Run("delete").Args("-n", "openshift-ingress-operator", "-f", shardConfig).Execute()
+		if len(shardConfigPath) > 0 {
+			oc.AsAdmin().Run("delete").Args("-n", "openshift-ingress-operator", "-f", shardConfigPath).Execute()
 		}
 	})
 
@@ -134,7 +134,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			// err = waitForIngressControllerCondition(oc, 15*time.Minute, types.NamespacedName{Namespace: "openshift-ingress-operator", Name: oc.Namespace()}, ingressControllerNonDefaultAvailableConditions...)
 			// o.Expect(err).NotTo(o.HaveOccurred(), "ingresscontroller conditions not met")
 
-			shardConfig, err = shard.DeployNewRouterShard(oc, 15*time.Minute, shard.Config{
+			shardConfigPath, err = shard.DeployNewRouterShard(oc, 15*time.Minute, shard.Config{
 				FixturePath: http2RouterShardConfigPath,
 				Name:        oc.Namespace(),
 				Domain:      shardedDomain,
