@@ -2,8 +2,8 @@ package router
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -34,8 +34,16 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 	defer g.GinkgoRecover()
 
 	var (
-		configPath = exutil.FixturePath("testdata", "router", "router-grpc-interop.yaml")
-		oc         = exutil.NewCLI("router-grpc")
+		grpcServiceConfigPath = exutil.FixturePath("testdata", "router", "router-grpc-interop.yaml")
+		// grpcRoutesConfigPath      = exutil.FixturePath("testdata", "router", "router-grpc-interop-routes.yaml")
+		grpcSourceDataPath      = exutil.FixturePath("testdata", "router", "router-grpc-interop-server.data")
+		grpcSourceGoModDataPath = exutil.FixturePath("testdata", "router", "router-grpc-interop-gomod.data")
+		grpcSourceGoSumDataPath = exutil.FixturePath("testdata", "router", "router-grpc-interop-gosum.data")
+
+		// grpcRouterShardConfigPath = exutil.FixturePath("testdata", "router", "router-http2-shard.yaml")
+
+		// configPath = exutil.FixturePath("testdata", "router", "router-grpc-interop.yaml")
+		oc = exutil.NewCLI("router-grpc")
 	)
 
 	// this hook must be registered before the framework namespace teardown
@@ -52,23 +60,40 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 
 	g.Describe("The HAProxy router", func() {
 		g.It("should pass the gRPC interoperability tests", func() {
-			g.Skip("disabled for https://bugzilla.redhat.com/show_bug.cgi?id=1853711")
-			g.By(fmt.Sprintf("creating test fixture from a config file %q", configPath))
-			err := oc.Run("new-app").Args("-f", configPath).Execute()
-			o.Expect(err).NotTo(o.HaveOccurred())
-			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "grpc-interop", oc.KubeFramework().Namespace.Name))
+			_, err := getDefaultIngressClusterDomainName(oc, 5*time.Minute)
+			o.Expect(err).NotTo(o.HaveOccurred(), "failed to find default domain name")
 
-			g.By("Discovering the set of supported test cases")
-			ns := oc.KubeFramework().Namespace.Name
-			output, err := grpcInteropExecClientShellCmd(ns, gRPCInteropTestTimeout, "/workdir/grpc-client -list-tests")
+			srcTarGz, err := makeCompressedTarArchive([]string{
+				grpcSourceDataPath,
+				grpcSourceGoModDataPath,
+				grpcSourceGoSumDataPath,
+			})
 			o.Expect(err).NotTo(o.HaveOccurred())
-			testCases := strings.Split(strings.TrimSpace(output), "\n")
-			o.Expect(testCases).ShouldNot(o.BeEmpty())
-			sort.Strings(testCases)
+			base64SrcTarGz := strings.Join(split(base64.StdEncoding.EncodeToString(srcTarGz), 76), "\n")
 
-			grpcInteropExecInClusterRouteTests(oc, testCases, gRPCInteropTestCaseIterations)
-			grpcInteropExecInClusterServiceTests(oc, testCases, gRPCInteropTestCaseIterations)
-			grpcInteropExecOutOfClusterRouteTests(oc, testCases, gRPCInteropTestCaseIterations)
+			g.By(fmt.Sprintf("creating service from a config file %q", grpcServiceConfigPath))
+			err = oc.Run("new-app").Args("-f", grpcServiceConfigPath, "-p", "BASE64_SRC_TGZ="+base64SrcTarGz).Execute()
+			o.Expect(err).NotTo(o.HaveOccurred())
+			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "grpc-interop", oc.Namespace()), "grpc-interop backend server pod not running")
+
+			time.Sleep(time.Hour)
+			// g.Skip("disabled for https://bugzilla.redhat.com/show_bug.cgi?id=1853711")
+			// g.By(fmt.Sprintf("creating test fixture from a config file %q", configPath))
+			// err := oc.Run("new-app").Args("-f", configPath).Execute()
+			// o.Expect(err).NotTo(o.HaveOccurred())
+			// e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "grpc-interop", oc.KubeFramework().Namespace.Name))
+
+			// g.By("Discovering the set of supported test cases")
+			// ns := oc.KubeFramework().Namespace.Name
+			// output, err := grpcInteropExecClientShellCmd(ns, gRPCInteropTestTimeout, "/workdir/grpc-client -list-tests")
+			// o.Expect(err).NotTo(o.HaveOccurred())
+			// testCases := strings.Split(strings.TrimSpace(output), "\n")
+			// o.Expect(testCases).ShouldNot(o.BeEmpty())
+			// sort.Strings(testCases)
+
+			// grpcInteropExecInClusterRouteTests(oc, testCases, gRPCInteropTestCaseIterations)
+			// grpcInteropExecInClusterServiceTests(oc, testCases, gRPCInteropTestCaseIterations)
+			// grpcInteropExecOutOfClusterRouteTests(oc, testCases, gRPCInteropTestCaseIterations)
 		})
 	})
 })
