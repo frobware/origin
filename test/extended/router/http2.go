@@ -75,8 +75,8 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 	// hook
 	g.AfterEach(func() {
 		if g.CurrentGinkgoTestDescription().Failed {
-			// exutil.DumpPodLogsStartingWith("http2", oc)
-			// exutil.DumpPodLogsStartingWithInNamespace("router", "openshift-ingress", oc.AsAdmin())
+			exutil.DumpPodLogsStartingWith("http2", oc)
+			exutil.DumpPodLogsStartingWithInNamespace("router", "openshift-ingress", oc.AsAdmin())
 		}
 		if len(shardConfigPath) > 0 {
 			oc.AsAdmin().Run("delete").Args("-n", "openshift-ingress-operator", "-f", shardConfigPath).Execute()
@@ -124,25 +124,14 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				"-p", "TYPE="+oc.Namespace()).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
 
-			// Roll out ingresscontroller dedicated to this test only.
 			g.By(fmt.Sprintf("creating router shard %q from a config file %q", oc.Namespace(), http2RouterShardConfigPath))
-
-			// routerShardConfig, err = oc.AsAdmin().Run("process").Args("-f", shardConfigPath, "-p", fmt.Sprintf("NAME=%v", oc.Namespace()), "NAMESPACE=openshift-ingress-operator", "DOMAIN="+shardedDomain, "TYPE="+oc.Namespace()).OutputToFile("http2config.json")
-			// o.Expect(err).NotTo(o.HaveOccurred(), "ingresscontroller conditions not met")
-
-			// err = oc.AsAdmin().Run("create").Args("-f", routerShardConfig, "--namespace=openshift-ingress-operator").Execute()
-			// o.Expect(err).NotTo(o.HaveOccurred())
-
-			// err = waitForIngressControllerCondition(oc, 15*time.Minute, types.NamespacedName{Namespace: "openshift-ingress-operator", Name: oc.Namespace()}, ingressControllerNonDefaultAvailableConditions...)
-			// o.Expect(err).NotTo(o.HaveOccurred(), "ingresscontroller conditions not met")
-
 			shardConfigPath, err = shard.DeployNewRouterShard(oc, 15*time.Minute, shard.Config{
 				FixturePath: http2RouterShardConfigPath,
 				Name:        oc.Namespace(),
 				Domain:      shardedDomain,
 				Type:        oc.Namespace(),
 			})
-			o.Expect(err).NotTo(o.HaveOccurred(), "new ingresscontroller did not deploy")
+			o.Expect(err).NotTo(o.HaveOccurred(), "new ingresscontroller did not rollout")
 
 			testCases := []struct {
 				route             string
@@ -226,9 +215,8 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				o.Expect(err).NotTo(o.HaveOccurred())
 			}
 
-			// Label the namespace with type=<namespace>
-			// as the router shard will use a namespace
-			// selector.
+			// Shard is using a namespace selector so
+			// label the test namespace to match.
 			err = oc.AsAdmin().Run("label").Args("namespace", oc.Namespace(), "type="+oc.Namespace()).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
 
@@ -296,67 +284,6 @@ func getDefaultIngressClusterDomainName(oc *exutil.CLI, timeout time.Duration) (
 	return domain, nil
 }
 
-// var ingressControllerNonDefaultAvailableConditions = []operatorv1.OperatorCondition{
-// 	{Type: operatorv1.IngressControllerAvailableConditionType, Status: operatorv1.ConditionTrue},
-// 	{Type: operatorv1.LoadBalancerManagedIngressConditionType, Status: operatorv1.ConditionTrue},
-// 	{Type: operatorv1.LoadBalancerReadyIngressConditionType, Status: operatorv1.ConditionTrue},
-// 	{Type: operatorv1.DNSManagedIngressConditionType, Status: operatorv1.ConditionTrue},
-// 	{Type: operatorv1.DNSReadyIngressConditionType, Status: operatorv1.ConditionTrue},
-// 	{Type: "Admitted", Status: operatorv1.ConditionTrue},
-// }
-
-// func operatorConditionMap(conditions ...operatorv1.OperatorCondition) map[string]string {
-// 	conds := map[string]string{}
-// 	for _, cond := range conditions {
-// 		conds[cond.Type] = string(cond.Status)
-// 	}
-// 	return conds
-// }
-
-// func conditionsMatchExpected(expected, actual map[string]string) bool {
-// 	filtered := map[string]string{}
-// 	for k := range actual {
-// 		if _, comparable := expected[k]; comparable {
-// 			filtered[k] = actual[k]
-// 		}
-// 	}
-// 	return reflect.DeepEqual(expected, filtered)
-// }
-
-// func waitForIngressControllerCondition(oc *exutil.CLI, timeout time.Duration, name types.NamespacedName, conditions ...operatorv1.OperatorCondition) error {
-// 	return wait.PollImmediate(3*time.Second, timeout, func() (bool, error) {
-// 		ic, err := oc.AdminOperatorClient().OperatorV1().IngressControllers(name.Namespace).Get(context.Background(), name.Name, metav1.GetOptions{})
-// 		if err != nil {
-// 			e2e.Logf("failed to get ingresscontroller %s/%s: %v, retrying...", name.Namespace, name.Name, err)
-// 			return false, nil
-// 		}
-// 		expected := operatorConditionMap(conditions...)
-// 		current := operatorConditionMap(ic.Status.Conditions...)
-// 		met := conditionsMatchExpected(expected, current)
-// 		if !met {
-// 			e2e.Logf("ingresscontroller %s/%s conditions not met; wanted %+v, got %+v, retrying...", name.Namespace, name.Name, expected, current)
-// 		}
-// 		return met, nil
-// 	})
-// }
-
-// readFile reads all data from filename, or fatally fails if an error
-// occurs.
-func readFile(filename string) ([]byte, error) {
-	data, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read %q: %v", filename, err)
-	}
-	return data, nil
-}
-
-func addPrefix(lines []string, prefix string) []string {
-	for i, line := range lines {
-		lines[i] = prefix + line
-	}
-	return lines
-}
-
 // split string into chunks limited in length by size.
 // Note: assumes 1:1 mapping between bytes/chars (i.e., non-UTF).
 func split(s string, size int) []string {
@@ -372,6 +299,8 @@ func split(s string, size int) []string {
 	return chunks
 }
 
+// makeCompressedTarArchive creates a compressed tar archives from the
+// contents of all files in filenames.
 func makeCompressedTarArchive(filenames []string) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
@@ -398,9 +327,9 @@ func makeCompressedTarArchive(filenames []string) ([]byte, error) {
 			return nil, err
 		}
 
-		data, err := readFile(filename)
+		data, err := ioutil.ReadFile(filename)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to read %q: %v", filename, err)
 		}
 
 		if _, err := tw.Write(data); err != nil {
