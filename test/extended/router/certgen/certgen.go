@@ -14,22 +14,6 @@ import (
 	"time"
 )
 
-// // MarshalPrivateKeyToDERFormatToStringSlice encodes key as a
-// // multi-line string.
-// func MarshalPrivateKeyToDERFormatToStringSlice(key *ecdsa.PrivateKey) ([]string, error) {
-// 	data, err := x509.MarshalECPrivateKey(key)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to marshal ECDSA private key: %v", err)
-// 	}
-
-// 	buf := &bytes.Buffer{}
-// 	if err := pem.Encode(buf, &pem.Block{Type: "EC PRIVATE KEY", Bytes: data}); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n"), nil
-// }
-
 // MarshalPrivateKeyToDERFormat converts the key to a string
 // representation (SEC 1, ASN.1 DER form) suitable for dropping into a
 // route's TLS key stanza.
@@ -59,17 +43,6 @@ func MarshalCertToPEMString(derBytes []byte) (string, error) {
 
 	return buf.String(), nil
 }
-
-// // MarshalCertToPEMStringToStringSlice encodes derBytes as a
-// // multi-line.
-// func MarshalCertToPEMStringToStringSlice(derBytes []byte) ([]string, error) {
-// 	buf := &bytes.Buffer{}
-// 	if err := pem.Encode(buf, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
-// 		return nil, fmt.Errorf("failed to encode cert data: %v", err)
-// 	}
-
-// 	return strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n"), nil
-// }
 
 // GenerateKeyPair creates root CA, certificate and key with optional
 // hosts. Certificate is valid from notBefore and expires after
