@@ -49,10 +49,8 @@ objects:
           mv router-grpc-interop-gomod.data go.mod;
           mv router-grpc-interop-gosum.data go.sum;
           mv router-grpc-interop-server.data server.go;
-          go mod vendor;
-          cat go.mod;
-          cat go.sum;
-          GRPC_GO_LOG_VERBOSITY_LEVEL=99 GRPC_GO_LOG_SEVERITY_LEVEL=info GODEBUG=1 go run server.go
+          GOPROXY=https://goproxy.golang.org,direct time go mod vendor;
+          GRPC_GO_LOG_VERBOSITY_LEVEL=99 GRPC_GO_LOG_SEVERITY_LEVEL=info GODEBUG=http2debug=1 go run server.go
       ports:
       - containerPort: 8443
         protocol: TCP
