@@ -64,7 +64,9 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 		http2ServiceConfigPath     = exutil.FixturePath("testdata", "router", "router-http2.yaml")
 		http2RoutesConfigPath      = exutil.FixturePath("testdata", "router", "router-http2-routes.yaml")
 		http2RouterShardConfigPath = exutil.FixturePath("testdata", "router", "router-http2-shard.yaml")
-		oc                         = exutil.NewCLI("router-http2")
+		http2SourceBackendPath     = exutil.FixturePath("testdata", "router", "router-http2-server.backend")
+
+		oc = exutil.NewCLI("router-http2")
 
 		shardConfigPath string // computed
 	)
@@ -86,7 +88,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			defaultDomain, err := getDefaultIngressClusterDomainName(oc, 5*time.Minute)
 			o.Expect(err).NotTo(o.HaveOccurred(), "failed to find default domain name")
 
-			srcTarGz, err := makeCompressedTarArchive([]string{"./test/extended/router/http2/cluster/server/server.go"})
+			srcTarGz, err := makeCompressedTarArchive([]string{http2SourceBackendPath})
 			o.Expect(err).NotTo(o.HaveOccurred())
 			base64SrcTarGz := strings.Join(split(base64.StdEncoding.EncodeToString(srcTarGz), 76), "\n")
 

@@ -42,18 +42,23 @@ objects:
       args:
         - set -e;
           cd /tmp;
-          base64 -d /src/data.base64 | tar -zxf -;
-          go run server.go;
+          base64 -d /src/data.base64 | tar -zxvf -;
+          mv router-http2-server.backend server.go;
+          go run server.go
       readinessProbe:
+        failureThreshold: 3
         tcpSocket:
           port: 8080
-        initialDelaySeconds: 5
-        periodSeconds: 10
+        initialDelaySeconds: 10
+        periodSeconds: 30
+        successThreshold: 1
       livenessProbe:
+        failureThreshold: 3
         tcpSocket:
           port: 8080
-        initialDelaySeconds: 15
-        periodSeconds: 20
+        initialDelaySeconds: 10
+        periodSeconds: 30
+        successThreshold: 1
       ports:
       - containerPort: 8443
         protocol: TCP

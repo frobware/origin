@@ -456,6 +456,7 @@
 // test/extended/testdata/router/router-h2spec.yaml
 // test/extended/testdata/router/router-http-echo-server.yaml
 // test/extended/testdata/router/router-http2-routes.yaml
+// test/extended/testdata/router/router-http2-server.backend
 // test/extended/testdata/router/router-http2-shard.yaml
 // test/extended/testdata/router/router-http2.yaml
 // test/extended/testdata/router/router-idle.yaml
@@ -50499,6 +50500,78 @@ func testExtendedTestdataRouterRouterHttp2RoutesYaml() (*asset, error) {
 	return a, nil
 }
 
+var _testExtendedTestdataRouterRouterHttp2ServerBackend = []byte(`package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+)
+
+const (
+	defaultHTTPPort  = "8080"
+	defaultHTTPSPort = "8443"
+	defaultTLSCrt    = "/etc/serving-cert/tls.crt"
+	defaultTLSKey    = "/etc/serving-cert/tls.key"
+)
+
+func lookupEnv(key, defaultVal string) string {
+	if val, ok := os.LookupEnv(key); ok {
+		return val
+	}
+	return defaultVal
+}
+
+func main() {
+	crtFile := lookupEnv("TLS_CRT", defaultTLSCrt)
+	keyFile := lookupEnv("TLS_KEY", defaultTLSKey)
+
+	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		fmt.Fprint(w, req.Proto)
+	})
+
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, req *http.Request) {
+		fmt.Fprint(w, "ready")
+	})
+
+	go func() {
+		port := lookupEnv("HTTP_PORT", defaultHTTPPort)
+		log.Printf("Listening on port %v\n", port)
+
+		if err := http.ListenAndServe(":"+port, nil); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	go func() {
+		port := lookupEnv("HTTPS_PORT", defaultHTTPSPort)
+		log.Printf("Listening securely on port %v\n", port)
+
+		if err := http.ListenAndServeTLS(":"+port, crtFile, keyFile, nil); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	select {}
+}
+`)
+
+func testExtendedTestdataRouterRouterHttp2ServerBackendBytes() ([]byte, error) {
+	return _testExtendedTestdataRouterRouterHttp2ServerBackend, nil
+}
+
+func testExtendedTestdataRouterRouterHttp2ServerBackend() (*asset, error) {
+	bytes, err := testExtendedTestdataRouterRouterHttp2ServerBackendBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "test/extended/testdata/router/router-http2-server.backend", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _testExtendedTestdataRouterRouterHttp2ShardYaml = []byte(`apiVersion: template.openshift.io/v1
 kind: Template
 parameters:
@@ -50587,18 +50660,23 @@ objects:
       args:
         - set -e;
           cd /tmp;
-          base64 -d /src/data.base64 | tar -zxf -;
-          go run server.go;
+          base64 -d /src/data.base64 | tar -zxvf -;
+          mv router-http2-server.backend server.go;
+          go run server.go
       readinessProbe:
+        failureThreshold: 3
         tcpSocket:
           port: 8080
-        initialDelaySeconds: 5
-        periodSeconds: 10
+        initialDelaySeconds: 10
+        periodSeconds: 30
+        successThreshold: 1
       livenessProbe:
+        failureThreshold: 3
         tcpSocket:
           port: 8080
-        initialDelaySeconds: 15
-        periodSeconds: 20
+        initialDelaySeconds: 10
+        periodSeconds: 30
+        successThreshold: 1
       ports:
       - containerPort: 8443
         protocol: TCP
@@ -54024,6 +54102,7 @@ var _bindata = map[string]func() (*asset, error){
 	"test/extended/testdata/router/router-h2spec.yaml":                                                       testExtendedTestdataRouterRouterH2specYaml,
 	"test/extended/testdata/router/router-http-echo-server.yaml":                                             testExtendedTestdataRouterRouterHttpEchoServerYaml,
 	"test/extended/testdata/router/router-http2-routes.yaml":                                                 testExtendedTestdataRouterRouterHttp2RoutesYaml,
+	"test/extended/testdata/router/router-http2-server.backend":                                              testExtendedTestdataRouterRouterHttp2ServerBackend,
 	"test/extended/testdata/router/router-http2-shard.yaml":                                                  testExtendedTestdataRouterRouterHttp2ShardYaml,
 	"test/extended/testdata/router/router-http2.yaml":                                                        testExtendedTestdataRouterRouterHttp2Yaml,
 	"test/extended/testdata/router/router-idle.yaml":                                                         testExtendedTestdataRouterRouterIdleYaml,
@@ -54774,6 +54853,7 @@ var _bintree = &bintree{nil, map[string]*bintree{
 					"router-h2spec.yaml":           {testExtendedTestdataRouterRouterH2specYaml, map[string]*bintree{}},
 					"router-http-echo-server.yaml": {testExtendedTestdataRouterRouterHttpEchoServerYaml, map[string]*bintree{}},
 					"router-http2-routes.yaml":     {testExtendedTestdataRouterRouterHttp2RoutesYaml, map[string]*bintree{}},
+					"router-http2-server.backend":  {testExtendedTestdataRouterRouterHttp2ServerBackend, map[string]*bintree{}},
 					"router-http2-shard.yaml":      {testExtendedTestdataRouterRouterHttp2ShardYaml, map[string]*bintree{}},
 					"router-http2.yaml":            {testExtendedTestdataRouterRouterHttp2Yaml, map[string]*bintree{}},
 					"router-idle.yaml":             {testExtendedTestdataRouterRouterIdleYaml, map[string]*bintree{}},
