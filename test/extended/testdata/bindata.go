@@ -50505,12 +50505,12 @@ parameters:
 - name: NAME
 - name: DOMAIN
 - name: NAMESPACE
-- name: NAMESPACE_SELECTOR
+- name: TYPE
 objects:
 - apiVersion: operator.openshift.io/v1
   kind: IngressController
   metadata:
-    name: ${NAMESPACE_SELECTOR}
+    name: ${TYPE}
     namespace: ${NAMESPACE}
     annotations:
       ingress.operator.openshift.io/default-enable-http2: "true"
@@ -50525,7 +50525,7 @@ objects:
           node-role.kubernetes.io/worker: ""
     namespaceSelector:
       matchLabels:
-        type: ${NAMESPACE_SELECTOR}
+        type: ${TYPE}
 `)
 
 func testExtendedTestdataRouterRouterHttp2ShardYamlBytes() ([]byte, error) {
@@ -50586,10 +50586,8 @@ objects:
       command: ["/bin/bash", "-c"]
       args:
         - set -e;
-          date;
           cd /tmp;
-          base64 -d /src/data.base64 | tar zxf -;
-          rm -f go.mod; rm -f go.sum;
+          base64 -d /src/data.base64 | tar -zxf -;
           go run server.go;
       readinessProbe:
         tcpSocket:

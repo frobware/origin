@@ -41,10 +41,8 @@ objects:
       command: ["/bin/bash", "-c"]
       args:
         - set -e;
-          date;
           cd /tmp;
-          base64 -d /src/data.base64 | tar zxf -;
-          rm -f go.mod; rm -f go.sum;
+          base64 -d /src/data.base64 | tar -zxf -;
           go run server.go;
       readinessProbe:
         tcpSocket:

@@ -27,7 +27,6 @@ import (
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	v1 "github.com/openshift/api/route/v1"
 	exutil "github.com/openshift/origin/test/extended/util"
 
 	"github.com/openshift/origin/test/extended/router/certgen"
@@ -89,9 +88,6 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			defaultDomain, err := getDefaultIngressClusterDomainName(oc, 5*time.Minute)
 			o.Expect(err).NotTo(o.HaveOccurred(), "failed to find default domain name")
 
-			pwd, _ := os.Getwd()
-			fmt.Println(pwd)
-
 			srcTarGz, err := makeCompressedTarArchive([]string{"./test/extended/router/http2/cluster/server/server.go"})
 			o.Expect(err).NotTo(o.HaveOccurred())
 			base64SrcTarGz := strings.Join(split(base64.StdEncoding.EncodeToString(srcTarGz), 76), "\n")
@@ -99,10 +95,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			g.By(fmt.Sprintf("creating service from a config file %q", http2ServiceConfigPath))
 			err = oc.Run("new-app").Args("-f", http2ServiceConfigPath, "-p", "BASE64_SRC_TGZ="+base64SrcTarGz).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
-
-			// domain is the fully qualified domain name
-			// for this test which may be shareded.
-			domain := oc.Namespace() + "." + defaultDomain
+			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "http2 backend server pod not running")
 
 			// certificate start and end time are very
 			// lenient to avoid any clock drift between
@@ -111,6 +104,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			notBefore := time.Now().Add(-24 * time.Hour)
 			notAfter := time.Now().Add(24 * time.Hour)
 
+			// Generate crt/key for routes that need them.
 			_, tlsCrtData, tlsPrivateKey, err := certgen.GenerateKeyPair(notBefore, notAfter)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
@@ -120,40 +114,25 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			pemCrt, err := certgen.MarshalCertToPEMString(tlsCrtData)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
+			shardedDomain := oc.Namespace() + "." + defaultDomain
+
 			g.By(fmt.Sprintf("creating routes from a config file %q", http2RoutesConfigPath))
 			err = oc.Run("new-app").Args("-f", http2RoutesConfigPath,
-				"-p", "DOMAIN="+domain,
+				"-p", "DOMAIN="+shardedDomain,
 				"-p", "TLS_CRT="+pemCrt,
 				"-p", "TLS_KEY="+derKey,
 				"-p", "TYPE="+oc.Namespace()).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
 
-			// Label the namespace with type=<namespace>
-			// as we will use a namespace selector on the
-			// new router shard.
-			err = oc.AsAdmin().Run("label").Args("namespace", oc.Namespace(), "type="+oc.Namespace()).Execute()
-			o.Expect(err).NotTo(o.HaveOccurred())
-
-			fmt.Println(oc.Run("get").Args("routes", "-o", "yaml", "-n", oc.Namespace()).Output())
-			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "http2 backend server pod not running")
-
-			// err = oc.AsAdmin().Run("label").Args("namespace", oc.Namespace(), "type="+oc.Namespace()).Execute()
-			// o.Expect(err).NotTo(o.HaveOccurred())
-			// e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "http2 backend server pod not running")
-
-			// g.By(fmt.Sprintf("creating test fixture from a config file %q", http2ConfigPath))
-			// err := oc.Run("new-app").Args("-f", http2ConfigPath, "-p", "TLS_CRT="+fmt.Sprintf("%s", strings.ReplaceAll(cert[1:], "\n", `\n`))).Execute()
-			// o.Expect(err).NotTo(o.HaveOccurred())
-			// err = oc.AsAdmin().Run("label").Args("namespace", oc.Namespace(), "type="+oc.Namespace()).Execute()
-			// o.Expect(err).NotTo(o.HaveOccurred())
-			// e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "http2 backend server pod not running")
-
-			// roll out ingresscontroller for this test only
+			// Roll out ingresscontroller dedicated to this test only.
 			g.By(fmt.Sprintf("creating router shard %q from a config file %q", oc.Namespace(), shardConfigPath))
-			routerShardConfig, err = oc.AsAdmin().Run("process").Args("-f", shardConfigPath, "-p", fmt.Sprintf("NAME=%v", oc.Namespace()), "NAMESPACE=openshift-ingress-operator", "DOMAIN="+domain, "NAMESPACE_SELECTOR="+oc.Namespace()).OutputToFile("http2config.json")
+
+			routerShardConfig, err = oc.AsAdmin().Run("process").Args("-f", shardConfigPath, "-p", fmt.Sprintf("NAME=%v", oc.Namespace()), "NAMESPACE=openshift-ingress-operator", "DOMAIN="+shardedDomain, "TYPE="+oc.Namespace()).OutputToFile("http2config.json")
 			o.Expect(err).NotTo(o.HaveOccurred(), "ingresscontroller conditions not met")
+
 			err = oc.AsAdmin().Run("create").Args("-f", routerShardConfig, "--namespace=openshift-ingress-operator").Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
+
 			err = waitForIngressControllerCondition(oc, 15*time.Minute, types.NamespacedName{Namespace: "openshift-ingress-operator", Name: oc.Namespace()}, ingressControllerNonDefaultAvailableConditions...)
 			o.Expect(err).NotTo(o.HaveOccurred(), "ingresscontroller conditions not met")
 
@@ -222,20 +201,12 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				useHTTP2Transport: false,
 			}}
 
-			// // Recreate routes with new shard namespace selector and host
-			// for _, tc := range testCases {
-			// 	host := tc.route + "." + domain
-			// 	_, err := recreateRouteWithHostAndLabels(oc, tc.route, host, map[string]string{"type": oc.Namespace()}, 5*time.Minute)
-			// 	o.Expect(err).NotTo(o.HaveOccurred())
-			// 	e2e.Logf("recreated route %q with host=%q", tc.route, host)
-			// }
-
 			// If we cannot resolve then we're not going
 			// to make a connection, so assert that lookup
 			// succeeds for each route.
 			for _, tc := range testCases {
 				err := wait.PollImmediate(3*time.Second, 15*time.Minute, func() (bool, error) {
-					host := tc.route + "." + domain
+					host := tc.route + "." + shardedDomain
 					addrs, err := net.LookupHost(host)
 					if err != nil {
 						e2e.Logf("host lookup error: %v, retrying...", err)
@@ -247,14 +218,20 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				o.Expect(err).NotTo(o.HaveOccurred())
 			}
 
+			// Label the namespace with type=<namespace>
+			// as the router shard will use a namespace
+			// selector.
+			err = oc.AsAdmin().Run("label").Args("namespace", oc.Namespace(), "type="+oc.Namespace()).Execute()
+			o.Expect(err).NotTo(o.HaveOccurred())
+
 			for i, tc := range testCases {
-				host := tc.route + "." + domain
+				host := tc.route + "." + shardedDomain
 				e2e.Logf("[test #%d/%d]: GET route: %s", i+1, len(testCases), host)
 
 				var resp *http.Response
 
 				o.Expect(wait.Poll(time.Second, 15*time.Minute, func() (bool, error) {
-					host := tc.route + "." + domain
+					host := tc.route + "." + shardedDomain
 					client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
 					resp, err = client.Get("https://" + host)
 					if err != nil && len(tc.expectedGetError) != 0 {
@@ -309,48 +286,6 @@ func getDefaultIngressClusterDomainName(oc *exutil.CLI, timeout time.Duration) (
 	}
 
 	return domain, nil
-}
-
-func recreateRouteWithHostAndLabels(oc *exutil.CLI, routeName, host string, labels map[string]string, timeout time.Duration) (*v1.Route, error) {
-	var newRoute *v1.Route
-
-	err := wait.PollImmediate(time.Second, timeout, func() (bool, error) {
-		existingRoute, err := oc.RouteClient().RouteV1().Routes(oc.Namespace()).Get(context.Background(), routeName, metav1.GetOptions{})
-		if err != nil {
-			e2e.Logf("Error getting route %q: %v, retrying...", routeName, err)
-			return false, err
-		}
-
-		if err := oc.RouteClient().RouteV1().Routes(oc.Namespace()).Delete(context.Background(), routeName, metav1.DeleteOptions{}); err != nil {
-			e2e.Logf("Error deleting route %q: %v", routeName, err)
-			return true, err
-		}
-
-		newRoute = &v1.Route{}
-
-		//  Type
-		newRoute.Kind = existingRoute.Kind
-		newRoute.APIVersion = existingRoute.APIVersion
-
-		// Metadata
-		newRoute.Name = existingRoute.Name
-		newRoute.Namespace = existingRoute.Namespace
-		newRoute.Labels = labels
-
-		// Spec
-		existingRoute.Spec.DeepCopyInto(&newRoute.Spec)
-		newRoute.Spec.Host = host
-
-		e2e.Logf("updating route %q with host=%q", routeName, host)
-		newRoute, err = oc.RouteClient().RouteV1().Routes(oc.Namespace()).Create(context.Background(), newRoute, metav1.CreateOptions{})
-		if err != nil {
-			e2e.Logf("Error creating route %q with host=%q: %v", routeName, host, err)
-			return true, err
-		}
-		return true, nil
-	})
-
-	return newRoute, err
 }
 
 var ingressControllerNonDefaultAvailableConditions = []operatorv1.OperatorCondition{
