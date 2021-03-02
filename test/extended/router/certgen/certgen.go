@@ -11,16 +11,33 @@ import (
 	"fmt"
 	"math/big"
 	"net"
+	"strings"
 	"time"
 )
 
-// MarshalKeyToDERFormat converts the key to a string representation
-// (SEC 1, ASN.1 DER form) suitable for dropping into a route's TLS
-// key stanza.
-func MarshalKeyToDERFormat(key *ecdsa.PrivateKey) (string, error) {
+// MarshalPrivateKeyToDERFormatToStringSlice encodes key as a
+// multi-line string.
+func MarshalPrivateKeyToDERFormatToStringSlice(key *ecdsa.PrivateKey) ([]string, error) {
 	data, err := x509.MarshalECPrivateKey(key)
 	if err != nil {
-		return "", fmt.Errorf("unable to marshal private key: %v", err)
+		return nil, fmt.Errorf("failed to marshal ECDSA private key: %v", err)
+	}
+
+	buf := &bytes.Buffer{}
+	if err := pem.Encode(buf, &pem.Block{Type: "EC PRIVATE KEY", Bytes: data}); err != nil {
+		return nil, err
+	}
+
+	return strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n"), nil
+}
+
+// MarshalPrivateKeyToDERFormat converts the key to a string
+// representation (SEC 1, ASN.1 DER form) suitable for dropping into a
+// route's TLS key stanza.
+func MarshalPrivateKeyToDERFormat(key *ecdsa.PrivateKey) (string, error) {
+	data, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal private key: %v", err)
 	}
 
 	buf := &bytes.Buffer{}
@@ -44,19 +61,30 @@ func MarshalCertToPEMString(derBytes []byte) (string, error) {
 	return buf.String(), nil
 }
 
-// GenerateKeyPair creates cert and key with optional subject
-// alternate names. Certificate is valid when it is invoked and
-// expires in 100 years.
-func GenerateKeyPair(notBefore, notAfter time.Time, subjectAltNames ...string) ([]byte, *ecdsa.PrivateKey, error) {
+// MarshalCertToPEMStringToStringSlice encodes derBytes as a
+// multi-line.
+func MarshalCertToPEMStringToStringSlice(derBytes []byte) ([]string, error) {
+	buf := &bytes.Buffer{}
+	if err := pem.Encode(buf, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		return nil, fmt.Errorf("failed to encode cert data: %v", err)
+	}
+
+	return strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n"), nil
+}
+
+// GenerateKeyPair creates root CA, certificate and key with optional
+// hosts. Certificate is valid from notBefore and expires after
+// notAfter.
+func GenerateKeyPair(notBefore, notAfter time.Time, hosts ...string) ([]byte, []byte, *ecdsa.PrivateKey, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate serial number: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to generate serial number: %v", err)
 	}
 
 	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate ECDSA key: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to generate ECDSA key: %v", err)
 	}
 
 	rootTemplate := x509.Certificate{
@@ -73,19 +101,19 @@ func GenerateKeyPair(notBefore, notAfter time.Time, subjectAltNames ...string) (
 		IsCA:                  true,
 	}
 
-	_, err = x509.CreateCertificate(rand.Reader, &rootTemplate, &rootTemplate, &rootKey.PublicKey, rootKey)
+	rootDerBytes, err := x509.CreateCertificate(rand.Reader, &rootTemplate, &rootTemplate, &rootKey.PublicKey, rootKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create root certificate: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to create root certificate: %v", err)
 	}
 
 	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate ECDSA key: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to generate ECDSA key: %v", err)
 	}
 
 	serialNumber, err = rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate serial number: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to generate serial number: %v", err)
 	}
 
 	leafCertTemplate := x509.Certificate{
@@ -102,7 +130,7 @@ func GenerateKeyPair(notBefore, notAfter time.Time, subjectAltNames ...string) (
 		IsCA:                  false,
 	}
 
-	for _, h := range subjectAltNames {
+	for _, h := range hosts {
 		if ip := net.ParseIP(h); ip != nil {
 			leafCertTemplate.IPAddresses = append(leafCertTemplate.IPAddresses, ip)
 		} else {
@@ -112,8 +140,8 @@ func GenerateKeyPair(notBefore, notAfter time.Time, subjectAltNames ...string) (
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &leafCertTemplate, &rootTemplate, &leafKey.PublicKey, rootKey)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create leaf certificate: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to create leaf certificate: %v", err)
 	}
 
-	return derBytes, leafKey, nil
+	return rootDerBytes, derBytes, leafKey, nil
 }

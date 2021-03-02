@@ -14,13 +14,12 @@ func main() {
 	notBefore := time.Now()
 	notAfter := notBefore.Add(validFor)
 
-	crt, key, err := certgen.GenerateKeyPair(notBefore, notAfter, flag.Args()...)
-
+	_, crt, key, err := certgen.GenerateKeyPair(notBefore, notAfter, flag.Args()...)
 	if err != nil {
 		log.Fatalf("failed to generate key pair: %v", err)
 	}
 
-	s1, err := certgen.MarshalKeyToDERFormat(key)
+	s1, err := certgen.MarshalPrivateKeyToDERFormat(key)
 	if err != nil {
 		log.Fatalf("failed to marshal key: %v", err)
 	}

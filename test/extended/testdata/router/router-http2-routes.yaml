@@ -1,14 +1,17 @@
 apiVersion: template.openshift.io/v1
 kind: Template
 parameters:
-- name: TLS_KEY
-- name: TLS_CRT
 - name: DOMAIN
+- name: TLS_CRT
+- name: TLS_KEY
+- name: TYPE
 objects:
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
     name: http2-default-cert-edge
+    labels:
+      type: ${TYPE}
   spec:
     host: http2-default-cert-edge.${DOMAIN}
     port:
@@ -25,6 +28,8 @@ objects:
   kind: Route
   metadata:
     name: http2-default-cert-reencrypt
+    labels:
+      type: ${TYPE}
   spec:
     host: http2-default-cert-reencrypt.${DOMAIN}
     port:
@@ -41,6 +46,8 @@ objects:
   kind: Route
   metadata:
     name: http2-custom-cert-edge
+    labels:
+      type: ${TYPE}
   spec:
     host: http2-custom-cert-edge.${DOMAIN}
     port:
@@ -49,23 +56,9 @@ objects:
       termination: edge
       insecureEdgeTerminationPolicy: Redirect
       key: |-
-        -----BEGIN EC PRIVATE KEY-----
-        MHcCAQEEIAW+ecg2cZR47ItbI898N3nJduh9UJNv+b0cOwH/Z1BEoAoGCCqGSM49
-        AwEHoUQDQgAEx0/5sEgiUPFdcbd4dSllkul8s68RQ5WxIjfwWYMdfYLiLLqP1lkz
-        4UYpwAW/t63qBx3jRhPgkUxh5saJP9Qu5Q==
-        -----END EC PRIVATE KEY-----
+        ${TLS_KEY}
       certificate: |-
-        -----BEGIN CERTIFICATE-----
-        MIIBgTCCASagAwIBAgIRALutWdExjxX8fWljW+lcYbswCgYIKoZIzj0EAwIwJDEQ
-        MA4GA1UEChMHUmVkIEhhdDEQMA4GA1UEAxMHUm9vdCBDQTAgFw0yMDA1MTExMDU2
-        NThaGA8yMTIwMDQxNzEwNTY1OFowJjEQMA4GA1UEChMHUmVkIEhhdDESMBAGA1UE
-        AwwJdGVzdF9jZXJ0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEx0/5sEgiUPFd
-        cbd4dSllkul8s68RQ5WxIjfwWYMdfYLiLLqP1lkz4UYpwAW/t63qBx3jRhPgkUxh
-        5saJP9Qu5aM1MDMwDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMB
-        MAwGA1UdEwEB/wQCMAAwCgYIKoZIzj0EAwIDSQAwRgIhAOIx8885y8tX/Vv94UGx
-        hWC/O1Hzi15kOT0WQ/UKUMjMAiEA40uW9P6k+i1cDwgfBBMzgDFQa9GAb4FqM8Wr
-        PaUMdqg=
-        -----END CERTIFICATE-----
+        ${TLS_CRT}
     to:
       kind: Service
       name: http2
@@ -75,6 +68,8 @@ objects:
   kind: Route
   metadata:
     name: http2-custom-cert-reencrypt
+    labels:
+      type: ${TYPE}
   spec:
     host: http2-custom-cert-reencrypt.${DOMAIN}
     port:
@@ -83,12 +78,9 @@ objects:
       termination: reencrypt
       insecureEdgeTerminationPolicy: Redirect
       key: |-
-        -----BEGIN EC PRIVATE KEY-----
-        MHcCAQEEIBk5BXzGWoGiRD9726TFPcvKHuwNVBUfPBlbF5fISRFPoAoGCCqGSM49
-        AwEHoUQDQgAEjCp5jERwCaBpjhoaOxgD1DDaPwKkWu+a8mJLn9Cn9+LcSub05zPa
-        MQy0a+FkvZSyTA2y8a8/IMM1f2MQC6bATg==
-        -----END EC PRIVATE KEY-----
-      certificate: ${TLS_CRT}
+        ${TLS_KEY}
+      certificate: |-
+        ${TLS_CRT}
     to:
       kind: Service
       name: http2
@@ -98,6 +90,8 @@ objects:
   kind: Route
   metadata:
     name: http2-passthrough
+    labels:
+      type: ${TYPE}
   spec:
     host: http2-passthrough.${DOMAIN}
     port:

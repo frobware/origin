@@ -26,7 +26,8 @@ objects:
   metadata:
     name: src-config
   data:
-    data.base64: ${BASE64_SRC_TGZ}
+    data.base64: |-
+      ${BASE64_SRC_TGZ}
 - apiVersion: v1
   kind: Pod
   metadata:
