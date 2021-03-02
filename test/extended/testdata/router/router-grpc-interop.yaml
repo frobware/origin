@@ -17,10 +17,6 @@ objects:
         name: https
         targetPort: 8443
         protocol: TCP
-      - port: 1110
-        name: h2c
-        targetPort: 1110
-        protocol: TCP
 - apiVersion: v1
   kind: ConfigMap
   labels:
@@ -53,10 +49,6 @@ objects:
           GRPC_GO_LOG_VERBOSITY_LEVEL=99 GRPC_GO_LOG_SEVERITY_LEVEL=info GODEBUG=http2debug=1 go run server.go
       ports:
       - containerPort: 8443
-        protocol: TCP
-      - containerPort: 1110
-        protocol: TCP
-      - containerPort: 8080
         protocol: TCP
       volumeMounts:
       - mountPath: /src
