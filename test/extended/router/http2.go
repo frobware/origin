@@ -15,7 +15,9 @@ import (
 	"golang.org/x/net/http2"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 
@@ -29,7 +31,9 @@ import (
 const (
 	// http2ClientGetTimeout specifies the time limit for requests
 	// made by the HTTP Client.
-	http2ClientTimeout = 1 * time.Minute
+	http2ClientTimeout = 5 * time.Second
+
+	ingressOperatorNamespace = "openshift-ingress-operator"
 )
 
 func makeHTTPClient(useHTTP2Transport bool, timeout time.Duration) *http.Client {
@@ -74,7 +78,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			exutil.DumpPodLogsStartingWithInNamespace("router", "openshift-ingress", oc.AsAdmin())
 		}
 		if len(shardConfigPath) > 0 {
-			if err := oc.AsAdmin().Run("delete").Args("-n", "openshift-ingress-operator", "-f", shardConfigPath).Execute(); err != nil {
+			if err := oc.AsAdmin().Run("delete").Args("-n", ingressOperatorNamespace, "-f", shardConfigPath).Execute(); err != nil {
 				e2e.Logf("deleting ingress controller failed: %v\n", err)
 			}
 		}
@@ -98,7 +102,9 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			g.By(fmt.Sprintf("creating service from a config file %q", http2ServiceConfigPath))
 			err = oc.Run("new-app").Args("-f", http2ServiceConfigPath, "-p", "IMAGE="+image).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
-			e2e.ExpectNoError(e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace()), "http2 backend server pod not running")
+
+			err = e2epod.WaitForPodRunningInNamespaceSlow(oc.KubeClient(), "http2", oc.Namespace())
+			o.Expect(err).NotTo(o.HaveOccurred())
 
 			// certificate start and end time are very
 			// lenient to avoid any clock drift between
@@ -119,14 +125,6 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 
 			shardedDomain := oc.Namespace() + "." + defaultDomain
 
-			g.By(fmt.Sprintf("creating routes from a config file %q", http2RoutesConfigPath))
-			err = oc.Run("new-app").Args("-f", http2RoutesConfigPath,
-				"-p", "DOMAIN="+shardedDomain,
-				"-p", "TLS_CRT="+pemCrt,
-				"-p", "TLS_KEY="+derKey,
-				"-p", "TYPE="+oc.Namespace()).Execute()
-			o.Expect(err).NotTo(o.HaveOccurred())
-
 			g.By(fmt.Sprintf("creating router shard %q from a config file %q", oc.Namespace(), http2RouterShardConfigPath))
 			shardConfigPath, err = shard.DeployNewRouterShard(oc, 15*time.Minute, shard.Config{
 				FixturePath: http2RouterShardConfigPath,
@@ -135,6 +133,14 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				Type:        oc.Namespace(),
 			})
 			o.Expect(err).NotTo(o.HaveOccurred(), "new ingresscontroller did not rollout")
+
+			g.By(fmt.Sprintf("creating routes from a config file %q", http2RoutesConfigPath))
+			err = oc.Run("new-app").Args("-f", http2RoutesConfigPath,
+				"-p", "DOMAIN="+shardedDomain,
+				"-p", "TLS_CRT="+pemCrt,
+				"-p", "TLS_KEY="+derKey,
+				"-p", "TYPE="+oc.Namespace()).Execute()
+			o.Expect(err).NotTo(o.HaveOccurred())
 
 			testCases := []struct {
 				route             string
@@ -230,7 +236,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 
 				var resp *http.Response
 
-				o.Expect(wait.Poll(3*time.Second, 15*time.Minute, func() (bool, error) {
+				o.Expect(wait.Poll(1*time.Second, 5*time.Minute, func() (bool, error) {
 					host := tc.route + "." + shardedDomain
 					client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
 					resp, err = client.Get("https://" + host)
@@ -289,6 +295,33 @@ func getDefaultIngressClusterDomainName(oc *exutil.CLI, timeout time.Duration) (
 	}
 
 	return domain, nil
+}
+
+func waitForDNSRecord(oc *exutil.CLI, timeout time.Duration, namespace, name string) error {
+	e2e.Logf("waiting for dnsrecord %s/%s", namespace, name)
+
+	r := schema.GroupVersionResource{
+		Group:    "ingress.operator.openshift.io",
+		Version:  "v1",
+		Resource: "dnsrecords",
+	}
+
+	// Need admin access to enumerate dnsrecords.
+	client := dynamic.NewForConfigOrDie(oc.AdminConfig())
+
+	return wait.PollImmediate(3*time.Second, timeout, func() (bool, error) {
+		l, err := client.Resource(r).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+		for i := range l.Items {
+			if l.Items[i].GetNamespace() == namespace && l.Items[i].GetName() == name {
+				return true, nil
+			}
+		}
+		e2e.Logf("dnsrecord %s/%s not found, retrying...", namespace, name)
+		return false, nil
+	})
 }
 
 func findCanaryImage(oc *exutil.CLI) (string, error) {
