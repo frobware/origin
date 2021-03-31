@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -15,9 +14,7 @@ import (
 	"golang.org/x/net/http2"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/dynamic"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 
@@ -31,7 +28,7 @@ import (
 const (
 	// http2ClientGetTimeout specifies the time limit for requests
 	// made by the HTTP Client.
-	http2ClientTimeout = 5 * time.Second
+	http2ClientTimeout = 1 * time.Minute
 
 	ingressOperatorNamespace = "openshift-ingress-operator"
 )
@@ -99,7 +96,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			image, err := findCanaryImage(oc)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
-			g.By(fmt.Sprintf("creating service from a config file %q", http2ServiceConfigPath))
+			g.By("creating service")
 			err = oc.Run("new-app").Args("-f", http2ServiceConfigPath, "-p", "IMAGE="+image).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
 
@@ -123,24 +120,30 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			pemCrt, err := certgen.MarshalCertToPEMString(tlsCrtData)
 			o.Expect(err).NotTo(o.HaveOccurred())
 
-			shardedDomain := oc.Namespace() + "." + defaultDomain
+			shardFQDN := oc.Namespace() + "." + defaultDomain
 
-			g.By(fmt.Sprintf("creating router shard %q from a config file %q", oc.Namespace(), http2RouterShardConfigPath))
-			shardConfigPath, err = shard.DeployNewRouterShard(oc, 15*time.Minute, shard.Config{
-				FixturePath: http2RouterShardConfigPath,
-				Name:        oc.Namespace(),
-				Domain:      shardedDomain,
-				Type:        oc.Namespace(),
-			})
-			o.Expect(err).NotTo(o.HaveOccurred(), "new ingresscontroller did not rollout")
+			// The new router shard is using a namespace
+			// selector so label this test namespace to
+			// match.
+			err = oc.AsAdmin().Run("label").Args("namespace", oc.Namespace(), "type="+oc.Namespace()).Execute()
+			o.Expect(err).NotTo(o.HaveOccurred())
 
-			g.By(fmt.Sprintf("creating routes from a config file %q", http2RoutesConfigPath))
+			g.By("creating routes")
 			err = oc.Run("new-app").Args("-f", http2RoutesConfigPath,
-				"-p", "DOMAIN="+shardedDomain,
+				"-p", "DOMAIN="+shardFQDN,
 				"-p", "TLS_CRT="+pemCrt,
 				"-p", "TLS_KEY="+derKey,
 				"-p", "TYPE="+oc.Namespace()).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
+
+			g.By("creating a test-specific router shard")
+			shardConfigPath, err = shard.DeployNewRouterShard(oc, 15*time.Minute, shard.Config{
+				FixturePath: http2RouterShardConfigPath,
+				Name:        oc.Namespace(),
+				Domain:      shardFQDN,
+				Type:        oc.Namespace(),
+			})
+			o.Expect(err).NotTo(o.HaveOccurred(), "new ingresscontroller did not rollout")
 
 			testCases := []struct {
 				route             string
@@ -207,38 +210,14 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				useHTTP2Transport: false,
 			}}
 
-			// If we cannot resolve then we're not going
-			// to make a connection, so assert that lookup
-			// succeeds for each route. DNS can take a
-			// long time to rollout for the new subdomain.
-			for _, tc := range testCases {
-				err := wait.PollImmediate(3*time.Second, 20*time.Minute, func() (bool, error) {
-					host := tc.route + "." + shardedDomain
-					addrs, err := net.LookupHost(host)
-					if err != nil {
-						e2e.Logf("host lookup error: %v, retrying...", err)
-						return false, nil
-					}
-					e2e.Logf("host %q now resolves as %+v", host, addrs)
-					return true, nil
-				})
-				o.Expect(err).NotTo(o.HaveOccurred())
-			}
-
-			// Shard is using a namespace selector so
-			// label the test namespace to match.
-			err = oc.AsAdmin().Run("label").Args("namespace", oc.Namespace(), "type="+oc.Namespace()).Execute()
-			o.Expect(err).NotTo(o.HaveOccurred())
-
 			for i, tc := range testCases {
-				host := tc.route + "." + shardedDomain
-				e2e.Logf("[test #%d/%d]: GET route: %s", i+1, len(testCases), host)
-
 				var resp *http.Response
 
+				client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
+
 				o.Expect(wait.Poll(1*time.Second, 5*time.Minute, func() (bool, error) {
-					host := tc.route + "." + shardedDomain
-					client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
+					host := tc.route + "." + shardFQDN
+					e2e.Logf("[test #%d/%d]: GET route: %s", i+1, len(testCases), host)
 					resp, err = client.Get("https://" + host)
 					if err != nil && len(tc.expectedGetError) != 0 {
 						errMatch := strings.Contains(err.Error(), tc.expectedGetError)
@@ -246,7 +225,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 							// We can hit the "default" ingress controller
 							// so wait for the new one to be fully
 							// registered and serving.
-							e2e.Logf("[test #%d/%d]: route: %s, GET error: %v, retrying...", i+1, len(testCases), host, err)
+							e2e.Logf("[test #%d/%d]: route: %s, GET error: %v, resp: %+v), retrying...", i+1, len(testCases), host, err, resp)
 						}
 						return errMatch, nil
 					}
@@ -295,33 +274,6 @@ func getDefaultIngressClusterDomainName(oc *exutil.CLI, timeout time.Duration) (
 	}
 
 	return domain, nil
-}
-
-func waitForDNSRecord(oc *exutil.CLI, timeout time.Duration, namespace, name string) error {
-	e2e.Logf("waiting for dnsrecord %s/%s", namespace, name)
-
-	r := schema.GroupVersionResource{
-		Group:    "ingress.operator.openshift.io",
-		Version:  "v1",
-		Resource: "dnsrecords",
-	}
-
-	// Need admin access to enumerate dnsrecords.
-	client := dynamic.NewForConfigOrDie(oc.AdminConfig())
-
-	return wait.PollImmediate(3*time.Second, timeout, func() (bool, error) {
-		l, err := client.Resource(r).List(context.TODO(), metav1.ListOptions{})
-		if err != nil {
-			return false, err
-		}
-		for i := range l.Items {
-			if l.Items[i].GetNamespace() == namespace && l.Items[i].GetName() == name {
-				return true, nil
-			}
-		}
-		e2e.Logf("dnsrecord %s/%s not found, retrying...", namespace, name)
-		return false, nil
-	})
 }
 
 func findCanaryImage(oc *exutil.CLI) (string, error) {
