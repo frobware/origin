@@ -139,13 +139,13 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			o.Expect(err).NotTo(o.HaveOccurred())
 
 			g.By("creating a test-specific router shard")
-			shardConfigPath, err = shard.DeployNewRouterShard(oc, 110*time.Minute, shard.Config{
+			shardConfigPath, err = shard.DeployNewRouterShard(oc, 10*time.Minute, shard.Config{
 				FixturePath: http2RouterShardConfigPath,
 				Name:        oc.Namespace(),
 				Domain:      shardFQDN,
 				Type:        oc.Namespace(),
 			})
-			o.Expect(err).NotTo(o.HaveOccurred(), "new ingresscontroller did not rollout")
+			o.Expect(err).NotTo(o.HaveOccurred(), "new router shard did not rollout")
 
 			testCases := []struct {
 				route             string
@@ -212,24 +212,19 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				useHTTP2Transport: false,
 			}}
 
-			shardService, err := getRouterService(oc, time.Minute, "router-"+oc.Namespace())
+			g.By("Getting LB service")
+			shardService, err := getRouterService(oc, 10*time.Minute, "router-"+oc.Namespace())
 			o.Expect(err).NotTo(o.HaveOccurred())
 			o.Expect(shardService).NotTo(o.BeNil())
 			o.Expect(shardService.Status.LoadBalancer.Ingress).To(o.Not(o.BeEmpty()))
 
-			// Wait for DNS zone to be updated otherwise
-			// the "default" router will serve the route
-			// and a GET will repeatedly fail as the
-			// "default" router does not have http/2
-			// enabled. Use 1 minute as the interval
-			// between retries to avoid repeatedly caching
-			// negative lookups.
+			g.By("Waiting for new DNS zone to register")
 			if len(shardService.Status.LoadBalancer.Ingress[0].IP) > 0 {
-				addrs, err := resolveHostAsAddress(oc, time.Minute, 10*time.Minute, testCases[0].route+"."+shardFQDN, shardService.Status.LoadBalancer.Ingress[0].IP)
+				addrs, err := resolveHostAsAddress(oc, time.Minute, 15*time.Minute, testCases[0].route+"."+shardFQDN, shardService.Status.LoadBalancer.Ingress[0].IP)
 				o.Expect(err).NotTo(o.HaveOccurred())
 				o.Expect(addrs).NotTo(o.BeEmpty())
 			} else {
-				addrs, err := resolveHost(oc, time.Minute, 10*time.Minute, shardService.Status.LoadBalancer.Ingress[0].Hostname)
+				addrs, err := resolveHost(oc, time.Minute, 15*time.Minute, shardService.Status.LoadBalancer.Ingress[0].Hostname)
 				o.Expect(err).NotTo(o.HaveOccurred())
 				o.Expect(addrs).NotTo(o.BeEmpty())
 			}
@@ -237,7 +232,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			for i, tc := range testCases {
 				var resp *http.Response
 
-				o.Expect(wait.Poll(3*time.Second, 10*time.Minute, func() (bool, error) {
+				o.Expect(wait.Poll(time.Second, 10*time.Minute, func() (bool, error) {
 					client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
 					host := tc.route + "." + shardFQDN
 					e2e.Logf("[test #%d/%d]: GET route: %s", i+1, len(testCases), host)
