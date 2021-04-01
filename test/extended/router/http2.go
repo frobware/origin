@@ -14,6 +14,7 @@ import (
 	o "github.com/onsi/gomega"
 	"golang.org/x/net/http2"
 
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
@@ -145,6 +146,11 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			})
 			o.Expect(err).NotTo(o.HaveOccurred(), "new ingresscontroller did not rollout")
 
+			shardLoadBalancerSvc, err := findRouterService(oc, time.Minute, "router-"+oc.Namespace())
+			o.Expect(err).NotTo(o.HaveOccurred())
+			o.Expect(shardLoadBalancerSvc.Status.LoadBalancer.Ingress).To(o.HaveLen(1))
+			fmt.Println(shardLoadBalancerSvc.Status.LoadBalancer.Ingress[0].IP)
+
 			testCases := []struct {
 				route             string
 				frontendProto     string
@@ -210,28 +216,50 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				useHTTP2Transport: false,
 			}}
 
+			// Wait until a host in new sharded domain
+			// resolves to the service IP addresss.
+			// Interval (1m) is long to avoid negative TTL
+			// lookups.
+			err = waitForDNSZoneUpdate(oc, time.Minute, 10*time.Minute,
+				shardLoadBalancerSvc.Status.LoadBalancer.Ingress[0].IP,
+				testCases[0].route+"."+shardFQDN)
+			o.Expect(err).NotTo(o.HaveOccurred())
+
+			// Wait for cloud provider DNS to roll out for
+			// the new router shard.
+
+			// Wait for cloud provider DNS to roll out for
+			// the new router shard.
+
 			// If we cannot resolve then we're not going
 			// to make a connection, so assert that lookup
 			// succeeds for each route. DNS can take a
 			// long time to rollout for the new subdomain.
-			for _, tc := range testCases {
-				err := wait.PollImmediate(time.Second, 5*time.Minute, func() (bool, error) {
-					host := tc.route + "." + shardFQDN
-					addrs, err := net.LookupHost(host)
-					if err != nil {
-						e2e.Logf("host lookup error: %v, retrying...", err)
-						return false, nil
-					}
-					e2e.Logf("host %q now resolves as %+v", host, addrs)
-					return true, nil
-				})
-				o.Expect(err).NotTo(o.HaveOccurred())
+			if false {
+				for _, tc := range testCases {
+					err := wait.PollImmediate(time.Second, 5*time.Minute, func() (bool, error) {
+						host := tc.route + "." + shardFQDN
+						addrs, err := net.LookupHost(host)
+						if err != nil {
+							e2e.Logf("host lookup error: %v, retrying...", err)
+							return false, nil
+						}
+						e2e.Logf("host %q now resolves as: %+v, expecting: %+v", host, addrs, shardLoadBalancerSvc.Status.LoadBalancer.Ingress)
+						return shardLoadBalancerSvc.Status.LoadBalancer.Ingress[0].IP == addrs[0], nil
+					})
+					o.Expect(err).NotTo(o.HaveOccurred())
+				}
 			}
 
 			for i, tc := range testCases {
 				var resp *http.Response
 
 				o.Expect(wait.Poll(time.Second, 5*time.Minute, func() (bool, error) {
+					// req, err := http.NewRequest("GET", "http://"+routerService.Status.LoadBalancer.Ingress[0].IP, nil)
+					// req.Host = tc.route + "." + shardFQDN
+					// dump, _ := httputil.DumpRequestOut(req, false)
+					// fmt.Printf("%s", dump)
+
 					client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
 					host := tc.route + "." + shardFQDN
 					e2e.Logf("[test #%d/%d]: GET route: %s", i+1, len(testCases), host)
@@ -297,6 +325,24 @@ func getDefaultIngressClusterDomainName(oc *exutil.CLI, timeout time.Duration) (
 	return domain, nil
 }
 
+func findRouterService(oc *exutil.CLI, timeout time.Duration, name string) (*v1.Service, error) {
+	var svc *v1.Service
+
+	if err := wait.PollImmediate(time.Second, timeout, func() (bool, error) {
+		o, err := oc.AdminKubeClient().CoreV1().Services("openshift-ingress").Get(context.Background(), name, metav1.GetOptions{})
+		if err != nil {
+			e2e.Logf("Get router service %s failed: %v, retrying...", name, err)
+			return false, nil
+		}
+		svc = o
+		return true, nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return svc, nil
+}
+
 func findCanaryImage(oc *exutil.CLI) (string, error) {
 	o, err := oc.AdminConfigClient().ConfigV1().ClusterOperators().Get(context.Background(), "ingress", metav1.GetOptions{})
 	if err != nil {
@@ -308,4 +354,22 @@ func findCanaryImage(oc *exutil.CLI) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("expected to find canary-server version on clusteroperators/ingress")
+}
+
+func waitForDNSZoneUpdate(oc *exutil.CLI, interval, timeout time.Duration, expectedIPAddr, host string) error {
+	return wait.PollImmediate(interval, timeout, func() (bool, error) {
+		addrs, err := net.LookupHost(host)
+		if err != nil {
+			e2e.Logf("lookup error: %v, retrying in %s...", err, interval.String())
+			return false, nil
+		}
+		for i := range addrs {
+			if addrs[i] != expectedIPAddr {
+				e2e.Logf("host %q resolves as %+v, expecting %v, retrying in %s...", host, addrs, expectedIPAddr, interval.String())
+				return false, nil
+			}
+		}
+		e2e.Logf("host %q now resolves as %+v", host, addrs)
+		return true, nil
+	})
 }
