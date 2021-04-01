@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -29,8 +30,6 @@ const (
 	// http2ClientGetTimeout specifies the time limit for requests
 	// made by the HTTP Client.
 	http2ClientTimeout = 1 * time.Minute
-
-	ingressOperatorNamespace = "openshift-ingress-operator"
 )
 
 func makeHTTPClient(useHTTP2Transport bool, timeout time.Duration) *http.Client {
@@ -75,7 +74,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			exutil.DumpPodLogsStartingWithInNamespace("router", "openshift-ingress", oc.AsAdmin())
 		}
 		if len(shardConfigPath) > 0 {
-			if err := oc.AsAdmin().Run("delete").Args("-n", ingressOperatorNamespace, "-f", shardConfigPath).Execute(); err != nil {
+			if err := oc.AsAdmin().Run("delete").Args("-n", "openshift-ingress-operator", "-f", shardConfigPath).Execute(); err != nil {
 				e2e.Logf("deleting ingress controller failed: %v\n", err)
 			}
 		}
@@ -125,10 +124,11 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			// The new router shard is using a namespace
 			// selector so label this test namespace to
 			// match.
+			g.By("by labelling the namespace under test for the router shard")
 			err = oc.AsAdmin().Run("label").Args("namespace", oc.Namespace(), "type="+oc.Namespace()).Execute()
 			o.Expect(err).NotTo(o.HaveOccurred())
 
-			g.By("creating routes")
+			g.By("creating routes to test for http/2 compliance")
 			err = oc.Run("new-app").Args("-f", http2RoutesConfigPath,
 				"-p", "DOMAIN="+shardFQDN,
 				"-p", "TLS_CRT="+pemCrt,
@@ -210,12 +210,29 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				useHTTP2Transport: false,
 			}}
 
+			// If we cannot resolve then we're not going
+			// to make a connection, so assert that lookup
+			// succeeds for each route. DNS can take a
+			// long time to rollout for the new subdomain.
+			for _, tc := range testCases {
+				err := wait.PollImmediate(time.Second, 5*time.Minute, func() (bool, error) {
+					host := tc.route + "." + shardFQDN
+					addrs, err := net.LookupHost(host)
+					if err != nil {
+						e2e.Logf("host lookup error: %v, retrying...", err)
+						return false, nil
+					}
+					e2e.Logf("host %q now resolves as %+v", host, addrs)
+					return true, nil
+				})
+				o.Expect(err).NotTo(o.HaveOccurred())
+			}
+
 			for i, tc := range testCases {
 				var resp *http.Response
 
-				client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
-
-				o.Expect(wait.Poll(1*time.Second, 5*time.Minute, func() (bool, error) {
+				o.Expect(wait.Poll(time.Second, 5*time.Minute, func() (bool, error) {
+					client := makeHTTPClient(tc.useHTTP2Transport, http2ClientTimeout)
 					host := tc.route + "." + shardFQDN
 					e2e.Logf("[test #%d/%d]: GET route: %s", i+1, len(testCases), host)
 					resp, err = client.Get("https://" + host)
@@ -225,7 +242,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 							// We can hit the "default" ingress controller
 							// so wait for the new one to be fully
 							// registered and serving.
-							e2e.Logf("[test #%d/%d]: route: %s, GET error: %v, resp: %+v), retrying...", i+1, len(testCases), host, err, resp)
+							e2e.Logf("[test #%d/%d]: route: %s, GET error: %v, retrying...", i+1, len(testCases), host, err)
 						}
 						return errMatch, nil
 					}
@@ -234,12 +251,15 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 						return false, nil // could be 503 if service not ready
 					}
 					if tc.statusCode == 0 {
+						resp.Body.Close()
 						return false, nil
 					}
 					if resp.StatusCode != tc.statusCode {
+						resp.Body.Close()
 						e2e.Logf("[test #%d/%d]: route: %s, expected status: %v, actual status: %v, retrying...", i+1, len(testCases), host, tc.statusCode, resp.StatusCode)
+						return false, nil
 					}
-					return resp.StatusCode == tc.statusCode, nil
+					return true, nil
 				})).NotTo(o.HaveOccurred())
 
 				if tc.expectedGetError != "" {
@@ -251,6 +271,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				o.Expect(resp.Proto).To(o.Equal(tc.frontendProto), "protocol not matched")
 				body, err := ioutil.ReadAll(resp.Body)
 				o.Expect(err).NotTo(o.HaveOccurred(), "failed to read the response body")
+				resp.Body.Close()
 				o.Expect(string(body)).To(o.Equal(tc.backendProto), fmt.Sprintf("response body content not matched: got %q, want %q", string(body), tc.backendProto))
 				o.Expect(resp.Body.Close()).NotTo(o.HaveOccurred(), "failed to close response body")
 			}
