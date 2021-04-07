@@ -146,7 +146,6 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			g.By("Creating a test-specific router shard")
 			shardConfigPath, err = shard.DeployNewRouterShard(oc, 10*time.Minute, shard.Config{
 				FixturePath: http2RouterShardConfigPath,
-				Name:        oc.Namespace(),
 				Domain:      shardFQDN,
 				Type:        oc.Namespace(),
 			})
