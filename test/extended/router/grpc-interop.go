@@ -53,7 +53,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				g.Skip("Skip on platforms where the default router is not exposed by a load balancer service.")
 			}
 
-			defaultDomain, err := getDefaultIngressClusterDomainName(oc, 5*time.Minute)
+			defaultDomain, err := getDefaultIngressClusterDomainName(oc, time.Minute)
 			o.Expect(err).NotTo(o.HaveOccurred(), "failed to find default domain name")
 
 			g.By("Locating the canary image reference")
@@ -141,17 +141,22 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 					continue
 				}
 
-				g.By("Ensuring route is registered in DNS")
-				if len(shardService.Status.LoadBalancer.Ingress[0].IP) > 0 {
-					host := fmt.Sprintf("grpc-interop-%s.%s", routeType, shardFQDN)
-					addrs, err := resolveHostAsAddress(oc, time.Minute, 15*time.Minute, host, shardService.Status.LoadBalancer.Ingress[0].IP)
+				var addrs []string
+
+				if len(shardService.Status.LoadBalancer.Ingress[0].Hostname) > 0 {
+					g.By("Waiting for LB hostname to register in DNS")
+					addrs, err = resolveHost(oc, time.Minute, 15*time.Minute, shardService.Status.LoadBalancer.Ingress[0].Hostname)
 					o.Expect(err).NotTo(o.HaveOccurred())
 					o.Expect(addrs).NotTo(o.BeEmpty())
 				} else {
-					addrs, err := resolveHost(oc, time.Minute, 15*time.Minute, shardService.Status.LoadBalancer.Ingress[0].Hostname)
-					o.Expect(err).NotTo(o.HaveOccurred())
-					o.Expect(addrs).NotTo(o.BeEmpty())
+					addrs = append(addrs, shardService.Status.LoadBalancer.Ingress[0].IP)
 				}
+
+				g.By("Waiting for route hostname to register in DNS")
+				host := fmt.Sprintf("grpc-interop-%s.%s", routeType, shardFQDN)
+				addrs, err = resolveHostAsAddress(oc, time.Minute, 15*time.Minute, host, addrs[0])
+				o.Expect(err).NotTo(o.HaveOccurred())
+				o.Expect(addrs).NotTo(o.BeEmpty())
 
 				err := grpcExecTestCases(oc, routeType, 5*time.Minute, testCases...)
 				o.Expect(err).NotTo(o.HaveOccurred())
@@ -175,7 +180,7 @@ func grpcExecTestCases(oc *exutil.CLI, routeType routev1.TLSTerminationType, tim
 	}
 
 	for _, name := range testCases {
-		e2e.Logf("Running gRPC interop test case %q via host %q", testCases, dialParams.Host)
+		e2e.Logf("Running gRPC interop test case %q via host %q", name, dialParams.Host)
 
 		if err := wait.PollImmediate(time.Second, timeout, func() (bool, error) {
 			e2e.Logf("Dialling: %+v", dialParams)
@@ -190,7 +195,7 @@ func grpcExecTestCases(oc *exutil.CLI, routeType routev1.TLSTerminationType, tim
 			}()
 
 			if err := grpcinterop.ExecTestCase(conn, name); err != nil {
-				e2e.Logf("error: running gRPC interop test case %q through %q: %v, retrying...", testCases, dialParams.Host, err)
+				e2e.Logf("error: running gRPC interop test case %q through %q: %v, retrying...", name, dialParams.Host, err)
 				return false, nil
 			}
 

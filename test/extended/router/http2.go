@@ -95,7 +95,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				g.Skip("Skip on platforms where the default router is not exposed by a load balancer service.")
 			}
 
-			defaultDomain, err := getDefaultIngressClusterDomainName(oc, 10*time.Minute)
+			defaultDomain, err := getDefaultIngressClusterDomainName(oc, time.Minute)
 			o.Expect(err).NotTo(o.HaveOccurred(), "failed to find default domain name")
 
 			g.By("Locating the canary image reference")
@@ -223,16 +223,21 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			o.Expect(shardService).NotTo(o.BeNil())
 			o.Expect(shardService.Status.LoadBalancer.Ingress).To(o.Not(o.BeEmpty()))
 
-			g.By("Waiting for new DNS zone to register")
-			if len(shardService.Status.LoadBalancer.Ingress[0].IP) > 0 {
-				addrs, err := resolveHostAsAddress(oc, time.Minute, 15*time.Minute, testCases[0].route+"."+shardFQDN, shardService.Status.LoadBalancer.Ingress[0].IP)
+			var addrs []string
+
+			if len(shardService.Status.LoadBalancer.Ingress[0].Hostname) > 0 {
+				g.By("Waiting for LB hostname to register in DNS")
+				addrs, err = resolveHost(oc, time.Minute, 15*time.Minute, shardService.Status.LoadBalancer.Ingress[0].Hostname)
 				o.Expect(err).NotTo(o.HaveOccurred())
 				o.Expect(addrs).NotTo(o.BeEmpty())
 			} else {
-				addrs, err := resolveHost(oc, time.Minute, 15*time.Minute, shardService.Status.LoadBalancer.Ingress[0].Hostname)
-				o.Expect(err).NotTo(o.HaveOccurred())
-				o.Expect(addrs).NotTo(o.BeEmpty())
+				addrs = append(addrs, shardService.Status.LoadBalancer.Ingress[0].IP)
 			}
+
+			g.By("Waiting for route hostname to register in DNS")
+			addrs, err = resolveHostAsAddress(oc, time.Minute, 15*time.Minute, testCases[0].route+"."+shardFQDN, addrs[0])
+			o.Expect(err).NotTo(o.HaveOccurred())
+			o.Expect(addrs).NotTo(o.BeEmpty())
 
 			for i, tc := range testCases {
 				testConfig := fmt.Sprintf("%+v", tc)
@@ -275,7 +280,6 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 				o.Expect(resp.Proto).To(o.Equal(tc.frontendProto), testConfig)
 				body, err := ioutil.ReadAll(resp.Body)
 				o.Expect(err).NotTo(o.HaveOccurred(), testConfig)
-				resp.Body.Close()
 				o.Expect(string(body)).To(o.Equal(tc.backendProto), testConfig)
 				o.Expect(resp.Body.Close()).NotTo(o.HaveOccurred())
 			}
