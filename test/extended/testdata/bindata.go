@@ -49653,6 +49653,28 @@ objects:
 - apiVersion: route.openshift.io/v1
   kind: Route
   metadata:
+    name: grpc-interop-edge
+    labels:
+      type: ${TYPE}
+  spec:
+    host: grpc-interop-edge.${DOMAIN}
+    port:
+      targetPort: 8443
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+      key: |-
+        ${TLS_KEY}
+      certificate: |-
+        ${TLS_CRT}
+    to:
+      kind: Service
+      name: grpc-interop
+      weight: 100
+    wildcardPolicy: None
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
     name: grpc-interop-reencrypt
     labels:
       type: ${TYPE}
@@ -50795,7 +50817,6 @@ func testExtendedTestdataRouterRouterScopedYaml() (*asset, error) {
 var _testExtendedTestdataRouterRouterShardYaml = []byte(`apiVersion: template.openshift.io/v1
 kind: Template
 parameters:
-- name: NAME
 - name: DOMAIN
 - name: NAMESPACE
 - name: TYPE
