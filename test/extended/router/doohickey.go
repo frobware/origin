@@ -13,6 +13,8 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework/pod"
 )
 
+const podNamePrefix = "execpod-"
+
 var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Router]", func() {
 	defer g.GinkgoRecover()
 
@@ -22,7 +24,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 
 	g.AfterEach(func() {
 		if g.CurrentGinkgoTestDescription().Failed {
-			exutil.DumpPodLogsStartingWithInNamespace("execPod", oc.Namespace(), oc.AsAdmin())
+			exutil.DumpPodLogsStartingWithInNamespace(podNamePrefix, oc.Namespace(), oc.AsAdmin())
 		}
 	})
 
@@ -53,15 +55,16 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			ns := oc.Namespace()
 
 			for i := 0; i < n; i++ {
-				podName := "execpod" + strconv.Itoa(i)
+				podName := podNamePrefix + strconv.Itoa(i)
 
 				if i%2 == 0 {
-					podName = "execpod"
+					podName = podNamePrefix
 				}
 
 				if err := createPod(oc, ns, podName, 5*time.Second, 5*time.Minute); err == nil {
 					oc.AdminKubeClient().CoreV1().Pods(ns).Delete(context.TODO(), podName, *metav1.NewDeleteOptions(1))
 				}
+
 				time.Sleep(time.Millisecond)
 			}
 		})
