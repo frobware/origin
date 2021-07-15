@@ -2,10 +2,12 @@ package router
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
 	g "github.com/onsi/ginkgo"
+	o "github.com/onsi/gomega"
 	exutil "github.com/openshift/origin/test/extended/util"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,10 +15,12 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework/pod"
 )
 
-const podNamePrefix = "execpod-"
+const podNamePrefix = "latency-"
+
+var errPodCompleted = fmt.Errorf("pod ran to completion")
 
 var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Router]", func() {
-	defer g.GinkgoRecover()
+	// defer g.GinkgoRecover()
 
 	var (
 		oc = exutil.NewCLI("doohickey")
@@ -24,7 +28,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 
 	g.AfterEach(func() {
 		if g.CurrentGinkgoTestDescription().Failed {
-			exutil.DumpPodLogsStartingWithInNamespace(podNamePrefix, oc.Namespace(), oc.AsAdmin())
+			// exutil.DumpPodLogsStartingWithInNamespace(podNamePrefix, oc.Namespace(), oc.AsAdmin())
 		}
 	})
 
@@ -33,23 +37,17 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			const n int = 10
 
 			createPod := func(oc *exutil.CLI, ns, name string, interval, timeout time.Duration) error {
-				pod := pod.NewAgnhostPod(ns, name, nil, nil, nil)
-				execPod, err := oc.KubeClient().CoreV1().Pods(ns).Create(context.TODO(), pod, metav1.CreateOptions{})
-				if err != nil {
+				pod := pod.NewExecPodSpec(ns, name, false)
+				if _, err := oc.KubeClient().CoreV1().Pods(ns).Create(context.TODO(), pod, metav1.CreateOptions{}); err != nil {
 					return err
 				}
-
-				if err := wait.PollImmediate(interval, timeout, func() (bool, error) {
-					retrievedPod, err := oc.KubeClient().CoreV1().Pods(execPod.Namespace).Get(context.TODO(), execPod.Name, metav1.GetOptions{})
+				return wait.PollImmediate(interval, timeout, func() (bool, error) {
+					pod, err := oc.KubeClient().CoreV1().Pods(ns).Get(context.TODO(), name, metav1.GetOptions{})
 					if err != nil {
 						return false, err
 					}
-					return retrievedPod.Status.Phase == v1.PodRunning, nil
-				}); err != nil {
-					return nil
-				}
-
-				return nil
+					return pod.Status.Phase == v1.PodRunning, nil
+				})
 			}
 
 			ns := oc.Namespace()
@@ -57,37 +55,15 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 			for i := 0; i < n; i++ {
 				podName := podNamePrefix + strconv.Itoa(i)
 
-				if i%2 == 0 {
+				if i%2 != 0 {
 					podName = podNamePrefix
 				}
 
-				if err := createPod(oc, ns, podName, 5*time.Second, 5*time.Minute); err == nil {
-					oc.AdminKubeClient().CoreV1().Pods(ns).Delete(context.TODO(), podName, *metav1.NewDeleteOptions(1))
-				}
-
+				err := createPod(oc, ns, podName, 1*time.Second, 100*time.Millisecond)
+				o.Expect(err).NotTo(o.HaveOccurred())
+				// oc.AdminKubeClient().CoreV1().Pods(ns).Delete(context.TODO(), podName, *metav1.NewDeleteOptions(1))
 				time.Sleep(time.Millisecond)
 			}
 		})
 	})
 })
-
-// createExecPod creates an agnhost pause-based pod.
-func createExecPod(oc *exutil.CLI, ns, name string, interval, timeout time.Duration) error {
-	pod := pod.NewAgnhostPod(ns, name, nil, nil, nil)
-	execPod, err := oc.KubeClient().CoreV1().Pods(ns).Create(context.TODO(), pod, metav1.CreateOptions{})
-	if err != nil {
-		return err
-	}
-
-	if err := wait.PollImmediate(interval, timeout, func() (bool, error) {
-		retrievedPod, err := oc.KubeClient().CoreV1().Pods(execPod.Namespace).Get(context.TODO(), execPod.Name, metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
-		return retrievedPod.Status.Phase == v1.PodRunning, nil
-	}); err != nil {
-		return nil
-	}
-
-	return nil
-}
