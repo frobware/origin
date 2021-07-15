@@ -48,7 +48,7 @@ var staticSuites = testSuites{
 				if isDisabled(name) {
 					return false
 				}
-				return strings.Contains(name, "[Suite:openshift/conformance/")
+				return strings.Contains(name, "doohickey")
 			},
 			Parallelism:         30,
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
