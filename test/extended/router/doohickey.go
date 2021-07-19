@@ -61,7 +61,7 @@ var _ = g.Describe("[sig-network-edge][Conformance][Area:Networking][Feature:Rou
 
 				err := createPod(oc, ns, podName, 1*time.Second, 100*time.Millisecond)
 				o.Expect(err).NotTo(o.HaveOccurred())
-				// oc.AdminKubeClient().CoreV1().Pods(ns).Delete(context.TODO(), podName, *metav1.NewDeleteOptions(1))
+				oc.AdminKubeClient().CoreV1().Pods(ns).Delete(context.TODO(), podName, *metav1.NewDeleteOptions(1))
 				time.Sleep(time.Millisecond)
 			}
 		})
